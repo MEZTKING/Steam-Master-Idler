@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam Master Idler</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+<style>
+	:root {
+		--bg: #0f141b;
+		--panel: #171e27;
+		--panel-2: #1e2732;
+		--border: #2a3542;
+		--text: #e3e9f0;
+		--muted: #8a98a8;
+		--accent: #4c9eea;
+		--accent-2: #66c0f4;
+		--good: #5fbf6a;
+		--warn: #e0a84a;
+		--bad: #e06464;
+		--radius: 10px;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0; background: var(--bg); color: var(--text);
+		font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	}
+	button, input, select { font: inherit; color: inherit; }
+	button {
+		background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px;
+		padding: 7px 14px; cursor: pointer;
+	}
+	button:hover:not(:disabled) { border-color: var(--accent); }
+	button:disabled { opacity: .45; cursor: default; }
+	button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+	button.primary:hover:not(:disabled) { background: var(--accent-2); }
+	button.danger { color: var(--bad); }
+	button.small { padding: 3px 9px; font-size: 13px; }
+	input, select {
+		background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px;
+	}
+	input:focus, select:focus { outline: none; border-color: var(--accent); }
+	.muted { color: var(--muted); }
+
+	header {
+		display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+		border-bottom: 1px solid var(--border); background: var(--panel);
+	}
+	header h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+	header .spacer { flex: 1; }
+	.pill { font-size: 12px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); }
+	.pill.on { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent); }
+	.pill.paused { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+
+	main { padding: 20px; max-width: 1300px; margin: 0 auto; }
+	.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+	.panel > h2 {
+		font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+		margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border);
+		display: flex; align-items: center; gap: 8px;
+	}
+	.panel > h2 .spacer { flex: 1; }
+	.panel-body { padding: 16px; }
+
+	/* login */
+	#login { max-width: 380px; margin: 60px auto; }
+	#login form { display: grid; gap: 12px; }
+	#login label { display: grid; gap: 5px; font-size: 13px; color: var(--muted); }
+	.error { color: var(--bad); font-size: 13px; min-height: 1em; }
+	.hint { font-size: 12.5px; color: var(--muted); }
+
+	/* main layout */
+	#app { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 20px; }
+	.right { display: grid; gap: 20px; align-content: start; min-width: 0; }
+	@media (max-width: 860px) { #app { grid-template-columns: 1fr; } main { padding: 16px; } }
+
+	/* library */
+	#library { display: flex; flex-direction: column; max-height: calc(100vh - 110px); position: sticky; top: 20px; }
+	#library .search { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+	#library .search input { width: 100%; }
+	#lib-list { overflow-y: auto; flex: 1; }
+	.row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+	.row:last-child { border-bottom: 0; }
+	.row .icon { width: 32px; height: 32px; border-radius: 5px; background: var(--panel-2); flex-shrink: 0; object-fit: cover; }
+	.row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.row .hours { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }
+	.empty { padding: 24px 16px; text-align: center; color: var(--muted); }
+
+	/* queue */
+	.qrow { display: grid; grid-template-columns: 32px 1fr auto auto auto; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+	.qrow:last-child { border-bottom: 0; }
+	.qrow .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.qrow .sub { font-size: 12px; color: var(--muted); }
+	.qrow input[type=number] { width: 80px; }
+	@media (max-width: 560px) {
+		.qrow { grid-template-columns: 32px 1fr auto; }
+		.qrow select, .qrow input[type=number] { grid-column: 2 / span 1; }
+	}
+
+	.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+	.settings label { display: grid; gap: 5px; font-size: 13px; color: var(--muted); }
+	.actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+
+	/* session */
+	.srow { padding: 12px 16px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 32px 1fr; gap: 6px 12px; }
+	.srow:last-child { border-bottom: 0; }
+	.srow .icon { grid-row: span 2; }
+	.srow .top { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; min-width: 0; }
+	.srow .top .name { flex-basis: 140px; }
+	.srow .top .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.bar { height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; }
+	.bar > div { height: 100%; background: var(--accent); border-radius: 99px; transition: width .6s; }
+	.bar.done > div { background: var(--good); }
+	.bar.forever > div { width: 100%; background: repeating-linear-gradient(-45deg, var(--accent) 0 8px, color-mix(in srgb, var(--accent) 60%, transparent) 8px 16px); background-size: 22px 22px; animation: slide 1s linear infinite; }
+	.bar.forever.idle > div { animation: none; opacity: .4; }
+	@keyframes slide { to { background-position: 22px 0; } }
+	.tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--panel-2); color: var(--muted); }
+	.tag.on { color: var(--good); }
+	.tag.done { color: var(--good); }
+	.stats { display: flex; gap: 24px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+	.stat .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+	.stat .k { font-size: 12px; color: var(--muted); }
+
+	#log { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); max-height: 220px; overflow-y: auto; padding: 12px 16px; white-space: pre-wrap; word-break: break-word; }
+	.tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+	.tabs button { flex: 1; }
+	.tabs button.active { border-color: var(--accent); color: var(--accent-2); }
+	#qr-pane { display: grid; gap: 12px; justify-items: center; text-align: center; }
+	#qr-box { width: 220px; height: 220px; background: #fff; border-radius: 8px; padding: 8px; display: grid; place-items: center; color: #555; }
+	#qr-box svg { width: 100%; height: 100%; }
+	#qr-box.scanned svg { opacity: .15; }
+	.drops { font-size: 11px; padding: 1px 7px; border-radius: 99px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); white-space: nowrap; }
+	.cards-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+	.cards-bar .spacer { flex: 1; }
+	.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+	<h1>Steam Master Idler</h1>
+	<span id="status-pill" class="pill">offline</span>
+	<span class="spacer"></span>
+	<span id="account" class="muted"></span>
+	<button id="logout" class="small hidden">Log out</button>
+</header>
+
+<main>
+	<!-- login -->
+	<section id="login" class="panel hidden">
+		<h2>Sign in to Steam</h2>
+		<div class="panel-body">
+			<div class="tabs" id="login-tabs">
+				<button type="button" data-tab="qr" class="active">QR code</button>
+				<button type="button" data-tab="pw">Password</button>
+			</div>
+			<div id="qr-pane">
+				<div id="qr-box">Loading…</div>
+				<div id="qr-status" class="hint">Open the Steam mobile app → Steam Guard → scan this code.</div>
+				<button type="button" id="qr-new" class="hidden">Get a new QR code</button>
+				<div class="hint">No password needed. Your login is saved locally so you only do this once.</div>
+			</div>
+			<form id="login-form" class="hidden">
+				<label>Username <input name="username" autocomplete="username" required></label>
+				<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+				<button class="primary" type="submit">Log in</button>
+				<div class="error" id="login-error"></div>
+				<div class="hint">Your password goes straight to Steam and is never saved. A login token is stored locally so you only sign in once.</div>
+			</form>
+			<form id="guard-form" class="hidden">
+				<label><span id="guard-label">Steam Guard code</span>
+					<input name="code" autocomplete="one-time-code" maxlength="10" required style="text-transform:uppercase;letter-spacing:3px;font-size:18px">
+				</label>
+				<button class="primary" type="submit">Submit code</button>
+				<div class="hint">Or approve the sign-in in the Steam mobile app.</div>
+			</form>
+			<div id="logging-in" class="hidden muted">Signing in…</div>
+		</div>
+	</section>
+
+	<!-- main app -->
+	<section id="app" class="hidden">
+		<div id="library" class="panel">
+			<h2>Library <span id="lib-count" class="muted"></span><span class="spacer"></span>
+				<button class="small" id="lib-refresh" title="Reload playtime from Steam">↻</button></h2>
+			<div class="search"><input id="lib-search" placeholder="Search games or AppID…"></div>
+			<div class="cards-bar"><span id="cards-info">Card drops: checking…</span><span class="spacer"></span>
+				<button class="small" id="cards-refresh" title="Re-check card drops">↻</button></div>
+			<div id="lib-list"></div>
+		</div>
+
+		<div class="right">
+			<!-- setup (when not idling) -->
+			<div id="setup" class="panel">
+				<h2>Idle queue <span id="queue-count" class="muted"></span><span class="spacer"></span>
+					<button class="small" id="queue-cards" title="Add every game that still has card drops">🃏 Add card games</button>
+					<button class="small" id="queue-clear">Clear</button></h2>
+				<div id="queue"></div>
+				<div class="panel-body" style="border-top:1px solid var(--border)">
+					<div class="settings">
+						<label>Stop session after (hours)
+							<input id="set-stop" type="number" min="0" step="0.5" placeholder="No limit"></label>
+						<label>Show me as
+							<select id="set-persona">
+								<option value="online">Online</option>
+								<option value="away">Away</option>
+								<option value="busy">Busy</option>
+								<option value="snooze">Snooze</option>
+								<option value="invisible">Invisible</option>
+								<option value="offline">Offline</option>
+							</select></label>
+						<label>Custom status text
+							<input id="set-custom" maxlength="64" placeholder="Optional"></label>
+						<label>Games at once (max 32)
+							<input id="set-max" type="number" min="1" max="32" step="1"></label>
+					</div>
+					<div class="actions">
+						<button class="primary" id="start">▶ Start idling</button>
+						<span class="error" id="start-error"></span>
+					</div>
+				</div>
+			</div>
+
+			<!-- running session -->
+			<div id="running" class="panel hidden">
+				<h2>Now idling<span class="spacer"></span>
+					<button class="small" id="pause">Pause</button>
+					<button class="small danger" id="stop">■ Stop</button></h2>
+				<div class="stats">
+					<div class="stat"><div class="v" id="st-time">0:00</div><div class="k">Session time</div></div>
+					<div class="stat"><div class="v" id="st-active">0</div><div class="k">Idling now</div></div>
+					<div class="stat"><div class="v" id="st-done">0</div><div class="k">Targets reached</div></div>
+					<div class="stat"><div class="v" id="st-left">—</div><div class="k">Session limit</div></div>
+				</div>
+				<div id="session-games"></div>
+			</div>
+
+			<div class="panel">
+				<h2>Activity</h2>
+				<div id="log"></div>
+			</div>
+		</div>
+	</section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hours = (min) => (min / 60).toFixed(1) + 'h';
+const clock = (ms) => { const m = Math.floor(ms / 60000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
+const iconHtml = (icon) => icon ? `<img class="icon" src="${esc(icon)}" alt="" loading="lazy">` : '<div class="icon"></div>';
+
+async function api(path, body) {
+	const res = await fetch(path, body === undefined ? {} : {
+		method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+	});
+	const data = await res.json().catch(() => ({}));
+	if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+	return data;
+}
+
+let S = null;              // last server snapshot
+let queue = null;          // [{appid, mode: 'forever'|'total'|'more', hours}]
+let libKey = '';
+let settingsLoaded = false;
+let lastCardsAt;
+
+// ---------- queue (local, saved to server) ----------
+
+function queueFromConfig(games) {
+	return games.map((g) => g.cards ? { appid: g.appid, mode: 'cards', hours: '' }
+		: g.targetHours != null ? { appid: g.appid, mode: 'total', hours: g.targetHours }
+		: g.addHours != null ? { appid: g.appid, mode: 'more', hours: g.addHours }
+		: { appid: g.appid, mode: 'forever', hours: '' });
+}
+function queueToConfig() {
+	return queue.map((q) => q.mode === 'cards' ? { appid: q.appid, cards: true }
+		: q.mode === 'total' ? { appid: q.appid, targetHours: q.hours }
+		: q.mode === 'more' ? { appid: q.appid, addHours: q.hours }
+		: { appid: q.appid });
+}
+function settingsBody() {
+	return {
+		games: queueToConfig(),
+		stopAfterHours: $('#set-stop').value,
+		persona: $('#set-persona').value,
+		customGameName: $('#set-custom').value,
+		maxConcurrent: $('#set-max').value,
+	};
+}
+let saveTimer;
+function save() {
+	clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => api('/api/settings', settingsBody()).catch((e) => ($('#start-error').textContent = e.message)), 400);
+}
+
+const libGame = (appid) => S?.library.find((g) => g.appid === appid);
+const dropsOf = (appid) => S?.cards.drops[appid] || 0;
+
+function renderQueue() {
+	$('#queue-count').textContent = queue.length ? `(${queue.length})` : '';
+	if (!queue.length) {
+		$('#queue').innerHTML = '<div class="empty">Add games from your library to start.</div>';
+		return;
+	}
+	$('#queue').innerHTML = queue.map((q, i) => {
+		const g = libGame(q.appid);
+		const name = g ? g.name : `App ${q.appid}`;
+		const cur = g ? hours(g.minutes) : '?';
+		let sub = `${cur} played`;
+		if (g && q.mode === 'total' && q.hours !== '') sub += ` · ${Math.max(0, q.hours - g.minutes / 60).toFixed(1)}h to go`;
+		if (g && q.mode === 'more' && q.hours !== '') sub += ` · ends at ${(g.minutes / 60 + +q.hours).toFixed(1)}h`;
+		if (q.mode === 'cards') sub += S.cards.checkedAt ? ` · ${dropsOf(q.appid)} card drop(s) left` : ' · card drops not checked yet';
+		return `<div class="qrow" data-i="${i}">
+			${iconHtml(g?.icon)}
+			<div style="min-width:0"><div class="name">${esc(name)}</div><div class="sub">${sub}</div></div>
+			<select data-f="mode">
+				<option value="forever" ${q.mode === 'forever' ? 'selected' : ''}>Forever</option>
+				<option value="total" ${q.mode === 'total' ? 'selected' : ''}>Until total of</option>
+				<option value="more" ${q.mode === 'more' ? 'selected' : ''}>For another</option>
+				<option value="cards" ${q.mode === 'cards' ? 'selected' : ''}>Until cards run out</option>
+			</select>
+			<input data-f="hours" type="number" min="0" step="0.5" placeholder="hours" value="${esc(q.hours)}" ${q.mode === 'forever' || q.mode === 'cards' ? 'disabled' : ''}>
+			<button class="small" data-f="remove" title="Remove">✕</button>
+		</div>`;
+	}).join('');
+}
+
+$('#queue').addEventListener('change', (e) => {
+	const row = e.target.closest('.qrow'); if (!row) return;
+	const q = queue[row.dataset.i];
+	if (e.target.dataset.f === 'mode') {
+		q.mode = e.target.value;
+		if ((q.mode === 'total' || q.mode === 'more') && q.hours === '') {
+			const g = libGame(q.appid);
+			q.hours = q.mode === 'total' ? Math.ceil((g ? g.minutes / 60 : 0) + 1) : 1;
+		}
+	}
+	if (e.target.dataset.f === 'hours') q.hours = e.target.value === '' ? '' : +e.target.value;
+	renderQueue(); save();
+});
+$('#queue').addEventListener('click', (e) => {
+	if (e.target.dataset.f !== 'remove') return;
+	queue.splice(+e.target.closest('.qrow').dataset.i, 1);
+	renderQueue(); renderLibrary(true); save();
+});
+$('#queue-cards').onclick = () => {
+	const have = new Set(queue.map((q) => q.appid));
+	for (const q of queue) if (dropsOf(q.appid)) q.mode = 'cards';
+	const add = Object.keys(S.cards.drops).map(Number).filter((id) => !have.has(id));
+	add.sort((a, b) => dropsOf(b) - dropsOf(a));
+	for (const appid of add) queue.push({ appid, mode: 'cards', hours: '' });
+	renderQueue(); renderLibrary(true); save();
+};
+$('#queue-clear').onclick = () => { queue = []; renderQueue(); renderLibrary(true); save(); };
+['#set-stop', '#set-persona', '#set-custom', '#set-max'].forEach((s) => $(s).addEventListener('change', save));
+
+// ---------- library ----------
+
+function renderLibrary(force) {
+	const term = $('#lib-search').value.trim().toLowerCase();
+	const key = `${S.library.length}|${S.library.reduce((a, g) => a + g.minutes, 0)}|${term}|${queue.map((q) => q.appid)}|${S.cards.checkedAt}`;
+	if (!force && key === libKey) return;
+	libKey = key;
+	$('#lib-count').textContent = S.library.length ? `(${S.library.length})` : '';
+	const inQueue = new Set(queue.map((q) => q.appid));
+	const list = S.library.filter((g) => !term || g.name.toLowerCase().includes(term) || String(g.appid) === term);
+	let html = list.slice(0, 400).map((g) => `<div class="row">
+		${iconHtml(g.icon)}
+		<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
+		${dropsOf(g.appid) ? `<span class="drops" title="Card drops remaining">🃏 ${dropsOf(g.appid)}</span>` : ''}
+		<span class="hours">${hours(g.minutes)}</span>
+		<button class="small" data-add="${g.appid}" ${inQueue.has(g.appid) ? 'disabled' : ''}>${inQueue.has(g.appid) ? 'Added' : '+ Add'}</button>
+	</div>`).join('');
+	if (/^\d+$/.test(term) && !S.library.some((g) => String(g.appid) === term)) {
+		html = `<div class="row"><div class="icon"></div><div class="name">AppID ${term} <span class="muted">(not in library)</span></div>
+			<button class="small" data-add="${term}" ${inQueue.has(+term) ? 'disabled' : ''}>+ Add</button></div>` + html;
+	}
+	$('#lib-list').innerHTML = html || `<div class="empty">${S.library.length ? 'No matches.' : 'Loading library…'}</div>`;
+}
+$('#lib-search').addEventListener('input', () => renderLibrary());
+$('#lib-list').addEventListener('click', (e) => {
+	const id = e.target.dataset.add; if (!id) return;
+	queue.push({ appid: +id, mode: dropsOf(+id) ? 'cards' : 'forever', hours: '' });
+	renderQueue(); renderLibrary(true); save();
+});
+function renderCardsInfo() {
+	const c = S.cards;
+	const games = Object.keys(c.drops).length;
+	const total = Object.values(c.drops).reduce((a, b) => a + b, 0);
+	const ago = c.checkedAt ? Math.round((Date.now() - c.checkedAt) / 60000) : null;
+	$('#cards-info').textContent = c.loading ? 'Card drops: checking…'
+		: c.error && !c.checkedAt ? `Card drops: ${c.error}`
+		: !c.checkedAt ? (c.ready ? 'Card drops: not checked' : 'Card drops: waiting for web login…')
+		: `🃏 ${total} card drop(s) in ${games} game(s) · ${ago ? ago + ' min ago' : 'just now'}`;
+	$('#cards-info').title = c.error || '';
+	$('#cards-refresh').disabled = c.loading || !c.ready;
+	$('#queue-cards').disabled = !games;
+}
+$('#cards-refresh').onclick = async () => {
+	try { await api('/api/cards/refresh', {}); } catch (e) { /* shown in the cards bar */ }
+	poll();
+};
+$('#lib-refresh').onclick = async (e) => {
+	e.target.disabled = true;
+	try { await api('/api/library/refresh', {}); await poll(); } finally { e.target.disabled = false; }
+};
+
+// ---------- session ----------
+
+function renderSession(s) {
+	const paused = s.paused || s.blocked || s.disconnected;
+	$('#pause').textContent = s.paused ? '▶ Resume' : '❚❚ Pause';
+	$('#st-time').textContent = clock(s.idledMs);
+	$('#st-active').textContent = paused ? '0' : s.games.filter((g) => g.active).length;
+	$('#st-done').textContent = `${s.games.filter((g) => g.done).length}/${s.games.filter((g) => g.targetMin != null || g.cards).length}`;
+	$('#st-left').textContent = s.stopAfterHours ? clock(Math.max(0, s.stopAfterHours * 3600000 - s.idledMs)) + ' left' : 'none';
+	$('#session-games').innerHTML = s.games.map((g) => {
+		const pct = g.targetMin ? Math.min(100, (g.minutes / g.targetMin) * 100) : 100;
+		const state = g.done ? '<span class="tag done">✔ done</span>'
+			: g.active && !paused ? '<span class="tag on">● idling</span>'
+			: g.active ? '<span class="tag">paused</span>' : '<span class="tag">queued</span>';
+		const prog = g.cards ? `${hours(g.minutes)} · ${g.dropsLeft == null ? 'checking cards…' : `🃏 ${g.dropsLeft} drop(s) left`}`
+			: g.targetMin ? `${hours(g.minutes)} / ${hours(g.targetMin)} · ${pct.toFixed(1)}%` : `${hours(g.minutes)} · no limit`;
+		const barCls = g.done ? 'done' : g.targetMin ? '' : `forever ${g.active && !paused ? '' : 'idle'}`;
+		return `<div class="srow">
+			${iconHtml(g.icon)}
+			<div class="top"><span class="name">${esc(g.name)}</span>${state}<span class="hours">${prog}</span></div>
+			<div class="bar ${barCls}"><div style="width:${g.targetMin ? pct : 100}%"></div></div>
+		</div>`;
+	}).join('');
+}
+$('#start').onclick = async () => {
+	$('#start-error').textContent = '';
+	if (queue.some((q) => (q.mode === 'total' || q.mode === 'more') && (q.hours === '' || isNaN(q.hours)))) {
+		$('#start-error').textContent = 'Set the hours for every game with a limit.';
+		return;
+	}
+	clearTimeout(saveTimer);
+	try { await api('/api/start', settingsBody()); await poll(); }
+	catch (e) { $('#start-error').textContent = e.message; }
+};
+$('#stop').onclick = async () => { await api('/api/stop', {}); await poll(); };
+$('#pause').onclick = async () => { await api('/api/pause', {}); await poll(); };
+
+// ---------- login ----------
+
+let loginTab = 'qr';
+let qrAutoStarted = false;
+let qrStarting = false;
+async function startQr() {
+	$('#login-error').textContent = '';
+	qrStarting = true;
+	try { await api('/api/login/qr', {}); } catch (e) { $('#login-error').textContent = e.message; }
+	await poll();
+	qrStarting = false;
+}
+$('#login-tabs').onclick = (e) => {
+	const tab = e.target.dataset.tab; if (!tab || tab === loginTab) return;
+	loginTab = tab;
+	document.querySelectorAll('#login-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+	$('#login-error').textContent = '';
+	if (tab === 'qr') startQr(); else api('/api/login/qr/cancel', {}).then(poll);
+	render();
+};
+$('#qr-new').onclick = startQr;
+let lastQrSvg = null;
+function renderQr() {
+	const box = $('#qr-box');
+	if (S.qr?.svg && S.qr.svg !== lastQrSvg) { box.innerHTML = S.qr.svg; lastQrSvg = S.qr.svg; }
+	if (S.qr && !S.qr.svg || !S.qr && qrStarting) box.textContent = 'Loading…';
+	if (!S.qr && !qrStarting) { box.textContent = 'QR code expired'; lastQrSvg = null; }
+	box.classList.toggle('scanned', !!S.qr?.scanned);
+	$('#qr-status').textContent = S.qr?.scanned ? '✔ Scanned — tap Approve in the Steam app.'
+		: 'Open the Steam mobile app → Steam Guard → scan this code.';
+	$('#qr-new').classList.toggle('hidden', !!S.qr || qrStarting);
+}
+
+$('#login-form').onsubmit = async (e) => {
+	e.preventDefault();
+	const f = new FormData(e.target);
+	$('#login-error').textContent = '';
+	try { await api('/api/login', { username: f.get('username'), password: f.get('password') }); e.target.password.value = ''; }
+	catch (err) { $('#login-error').textContent = err.message; }
+	poll();
+};
+$('#guard-form').onsubmit = async (e) => {
+	e.preventDefault();
+	try { await api('/api/guard', { code: e.target.code.value }); e.target.code.value = ''; }
+	catch (err) { $('#login-error').textContent = err.message; }
+	poll();
+};
+$('#logout').onclick = async () => {
+	if (!confirm('Log out and forget the saved login?')) return;
+	await api('/api/logout', {}); queue = null; settingsLoaded = false; qrAutoStarted = false; poll();
+};
+
+// ---------- main render ----------
+
+function render() {
+	const loggedIn = S.status === 'loggedIn';
+	$('#login').classList.toggle('hidden', loggedIn);
+	$('#app').classList.toggle('hidden', !loggedIn);
+	$('#logout').classList.toggle('hidden', !loggedIn);
+	$('#account').textContent = S.account || '';
+
+	const pill = $('#status-pill');
+	const s = S.session;
+	const paused = s && (s.paused || s.blocked || s.disconnected);
+	pill.className = 'pill' + (s ? (paused ? ' paused' : ' on') : '');
+	pill.textContent = !loggedIn ? (S.status === 'loggedOut' ? 'offline' : 'signing in')
+		: !s ? 'ready' : s.paused ? 'paused' : s.blocked ? 'paused · playing elsewhere' : s.disconnected ? 'reconnecting' : 'idling';
+	document.title = s && !paused ? '▶ Steam Master Idler' : 'Steam Master Idler';
+
+	if (!loggedIn) {
+		const out = S.status === 'loggedOut';
+		$('#login-tabs').classList.toggle('hidden', !out);
+		$('#qr-pane').classList.toggle('hidden', !out || loginTab !== 'qr');
+		$('#login-form').classList.toggle('hidden', !out || loginTab !== 'pw');
+		if (out && loginTab === 'qr') {
+			if (!qrAutoStarted && !S.qr) { qrAutoStarted = true; startQr(); }
+			renderQr();
+		}
+		$('#guard-form').classList.toggle('hidden', S.status !== 'needGuard');
+		$('#logging-in').classList.toggle('hidden', S.status !== 'loggingIn');
+		if (S.status === 'needGuard') {
+			$('#guard-label').textContent = S.guard.lastCodeWrong ? 'That code was wrong — try again'
+				: S.guard.domain ? `Code emailed to ${S.guard.domain}` : 'Code from the Steam mobile app';
+		}
+		if (S.error) $('#login-error').textContent = S.error;
+		return;
+	}
+
+	if (!settingsLoaded) {
+		settingsLoaded = true;
+		queue = queueFromConfig(S.config.games);
+		$('#set-stop').value = S.config.stopAfterHours ?? '';
+		$('#set-persona').value = S.config.persona;
+		$('#set-custom').value = S.config.customGameName;
+		$('#set-max').value = S.config.maxConcurrent;
+		renderQueue();
+	}
+
+	$('#setup').classList.toggle('hidden', !!s);
+	$('#running').classList.toggle('hidden', !s);
+	if (s) renderSession(s);
+	const hadLib = libKey.split('|')[0] !== '0' && libKey !== '';
+	renderLibrary();
+	renderCardsInfo();
+	if (!s && S.cards.checkedAt !== lastCardsAt) { lastCardsAt = S.cards.checkedAt; renderQueue(); }
+	if (!hadLib && S.library.length && !s) renderQueue(); // names/icons arrive with the library
+
+	const logEl = $('#log');
+	const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 10;
+	const text = S.log.join('\n');
+	if (logEl.textContent !== text) {
+		logEl.textContent = text;
+		if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+	}
+}
+
+async function poll() {
+	try { S = await api('/api/state'); render(); }
+	catch { $('#status-pill').textContent = 'GUI server not running'; $('#status-pill').className = 'pill'; }
+}
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>
