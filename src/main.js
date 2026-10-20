@@ -4,7 +4,7 @@
 // Closing the window keeps idling in the tray; quit from the tray menu.
 
 const path = require('path');
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, powerSaveBlocker } = require('electron');
 
 // one copy at a time - a second launch just focuses the existing window
 if (!app.requestSingleInstanceLock()) {
@@ -14,6 +14,7 @@ if (!app.requestSingleInstanceLock()) {
 
 // keep config / login / state in the per-user app data folder, not the install folder
 process.env.IDLER_DATA_DIR = app.getPath('userData');
+process.env.IDLER_DESKTOP = '1';   // shows the desktop-only settings in the page
 const server = require('./server');
 
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -52,8 +53,16 @@ function createWindow() {
 		if (!target.startsWith(url)) e.preventDefault();
 	});
 
+	// "Minimize to system tray": minimizing or closing hides the window and keeps idling.
+	// With it off, minimize works normally and closing the window quits.
+	win.on('minimize', (e) => {
+		if (!server.getConfig().minimizeToTray) return;
+		e.preventDefault();
+		win.hide();
+	});
 	win.on('close', (e) => {
 		if (quitting) return;
+		if (!server.getConfig().minimizeToTray) return app.quit();
 		e.preventDefault();
 		win.hide();
 		if (!trayHintShown && server.isIdling()) {
@@ -72,6 +81,14 @@ function showWindow() {
 
 function notify(body) {
 	if (Notification.isSupported()) new Notification({ title: 'Steam Master Idler', body, icon: ICON }).show();
+}
+
+// "Prevent sleep": keep the computer awake while idling
+let sleepBlocker = null;
+function updateSleepBlocker() {
+	const want = server.isIdling() && server.getConfig().preventSleep;
+	if (want && sleepBlocker == null) sleepBlocker = powerSaveBlocker.start('prevent-app-suspension');
+	if (!want && sleepBlocker != null) { powerSaveBlocker.stop(sleepBlocker); sleepBlocker = null; }
 }
 
 function buildTrayMenu() {
@@ -117,6 +134,8 @@ app.whenReady().then(async () => {
 	if (process.platform === 'win32') app.setAppUserModelId('com.meztking.steammasteridler');
 	url = await server.start(0);   // any free local port
 	server.events.on('notify', notify);
+	server.events.on('session', updateSleepBlocker);
+	server.events.on('config', updateSleepBlocker);
 	createTray();
 	createWindow();
 });

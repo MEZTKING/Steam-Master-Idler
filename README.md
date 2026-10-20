@@ -8,14 +8,36 @@
 
 ## Features
 
-- **Per-game targets:** idle a game **forever**, **until its total reaches X hours**, **for another X hours**, or **until its card drops run out**.
-- **Card-drop farming:** see which games still have trading cards to drop and queue them all with one click. Each game stops when its drops are gone.
+- **Hours idler:** idle a game **forever**, **until its total reaches X hours**, **for another X hours**, or **until its card drops run out**.
+- **Card idler:** one click farms every game that still has trading-card drops, using the idling behavior and order you choose. Each game stops when its drops are gone.
 - **QR-code login:** scan with the Steam mobile app; no password typed. Username, password and Steam Guard also work. You only log in once.
 - **Up to 32 games at once.** Extra games wait in a queue and start as others finish.
 - **Session limit:** stop everything after X hours.
 - **Runs in the tray:** closing the window keeps it idling. Desktop notifications tell you when targets are reached.
 - **Pauses automatically** if you start playing on another device, and resumes when you stop.
 - Optional "start when I log in", custom status text and online/invisible status.
+
+## Settings
+
+Click **⚙ Settings** in the top bar.
+
+| General | |
+|---|---|
+| Minimize to system tray | Minimizing or closing keeps idling in the tray. Off: closing quits. |
+| Dark theme | Switch between dark and light. |
+| Show Steam username | Show your name in the top bar. |
+| Prevent computer from sleeping | Keeps the computer awake while idling. |
+| Shut down computer when done | Powers off when everything is finished, after a 60-second countdown you can cancel. |
+| Idle only games I've played before | Skips games with 0 hours, so new games stay refundable (Steam refunds games played under 2 hours). |
+
+**Card idling behavior**
+- **Fast mode** (recommended): all card games together for 5 minutes, then each one alone for a moment to trigger drops, then repeat.
+- **All games at once:** every card game together the whole time.
+- **Idle each game individually:** one at a time until its drops run out.
+- **Simultaneously up to 2 hours, then individually.**
+- **More than 2 hours individually, then simultaneously.**
+
+**Card idling order:** alphabetical, most drops first, or fewest drops first.
 
 No game is actually launched, so there is no VAC risk.
 
@@ -36,8 +58,8 @@ The builds aren't code-signed, so the first launch shows a warning:
 ## Using it
 
 1. Open the app and scan the QR code with the Steam mobile app (Steam Guard → scan QR), then tap Approve.
-2. Click **+ Add** on games in your library, or **🃏 Add card games**.
-3. Pick a mode and hours for each game, then click **▶ Start idling**.
+2. **To farm cards:** open the **🃏 Card idler** tab and click **▶ Start card idling**.
+3. **To idle hours:** on the **⏱ Hours idler** tab, click **+ Add** on games in your library, pick a mode and hours for each, then click **▶ Start idling**.
 
 Close the window and it keeps going in the tray. Choose **Quit** from the tray menu to stop. Quitting always takes you out of "in-game" status.
 
@@ -66,6 +88,7 @@ npm run cli -- -g 730:100 -g 440:+5    # CS2 until 100h total, TF2 for 5 more ho
 npm run cli -- -g 570                  # idle forever
 npm run cli -- --cards                 # farm every game with card drops left
 npm run cli -- --stop-after 8          # stop after 8 hours
+npm run cli -- --played-only           # skip games you've never played
 ```
 
 ## Releasing

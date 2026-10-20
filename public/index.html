@@ -19,6 +19,21 @@
 		--warn: #e0a84a;
 		--bad: #e06464;
 		--radius: 10px;
+		color-scheme: dark;
+	}
+	:root[data-theme="light"] {
+		--bg: #eef2f6;
+		--panel: #ffffff;
+		--panel-2: #f0f3f7;
+		--border: #d5dde6;
+		--text: #17202b;
+		--muted: #5b6977;
+		--accent: #2f7fd6;
+		--accent-2: #1f6fc4;
+		--good: #2a9142;
+		--warn: #a86d0c;
+		--bad: #c43c3c;
+		color-scheme: light;
 	}
 	* { box-sizing: border-box; }
 	body {
@@ -99,6 +114,7 @@
 
 	.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 	.settings label { display: grid; gap: 5px; font-size: 13px; color: var(--muted); }
+	.sub .warn { color: var(--warn); }
 	.actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
 
 	/* session */
@@ -132,6 +148,38 @@
 	.drops { font-size: 11px; padding: 1px 7px; border-radius: 99px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); white-space: nowrap; }
 	.cards-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
 	.cards-bar .spacer { flex: 1; }
+	/* idler tabs */
+	.modetabs { display: flex; gap: 6px; }
+	.modetabs button { flex: 1; padding: 9px 14px; font-weight: 600; color: var(--muted); }
+	.modetabs button.active { border-color: var(--accent); color: var(--accent-2); background: var(--panel); }
+
+	/* card idler */
+	.cards-stats { display: flex; gap: 28px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+	#cards-list .row.skip { opacity: .5; }
+	.behavior { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+	.behavior b { color: var(--text); font-weight: 600; }
+	.linkish { background: none; border: 0; padding: 0; color: var(--accent-2); cursor: pointer; font-size: 13px; }
+	.linkish:hover:not(:disabled) { text-decoration: underline; }
+	#st-phase { padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+
+	/* shutdown banner */
+	#shutdown-banner { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
+	#shutdown-banner span { flex: 1; color: var(--warn); font-weight: 600; }
+
+	/* settings dialog */
+	dialog#settings {
+		background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+		padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+	}
+	dialog#settings::backdrop { background: rgba(0, 0, 0, .55); }
+	dialog#settings > h2 { display: flex; align-items: center; margin: 0; padding: 14px 18px; font-size: 16px; border-bottom: 1px solid var(--border); }
+	dialog#settings > h2 span { flex: 1; }
+	.dlg-body { padding: 6px 18px 18px; display: grid; gap: 14px; }
+	fieldset { border: 1px solid var(--border); border-radius: 9px; margin: 0; padding: 8px 14px 12px; display: grid; gap: 2px; }
+	legend { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); padding: 0 6px; }
+	.opt { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+	.opt input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); flex-shrink: 0; }
+	.opt small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -142,6 +190,7 @@
 	<span id="status-pill" class="pill">offline</span>
 	<span class="spacer"></span>
 	<span id="account" class="muted"></span>
+	<button id="open-settings" class="small hidden" title="Settings">⚙ Settings</button>
 	<button id="logout" class="small hidden">Log out</button>
 </header>
 
@@ -190,7 +239,37 @@
 		</div>
 
 		<div class="right">
-			<!-- setup (when not idling) -->
+			<div id="shutdown-banner" class="panel hidden">
+				<span id="shutdown-text">Shutting down…</span>
+				<button class="small" id="cancel-shutdown">Cancel shutdown</button>
+			</div>
+
+			<div class="modetabs" id="modetabs">
+				<button data-mode="hours" class="active">⏱ Hours idler</button>
+				<button data-mode="cards">🃏 Card idler</button>
+			</div>
+
+			<!-- card idler (when not idling) -->
+			<div id="cards-setup" class="panel hidden">
+				<h2>Card idler<span class="spacer"></span>
+					<button class="small" id="cards-refresh-2" title="Re-check card drops">↻ Check drops</button></h2>
+				<div class="cards-stats">
+					<div class="stat"><div class="v" id="cs-drops">—</div><div class="k">Card drops left</div></div>
+					<div class="stat"><div class="v" id="cs-games">—</div><div class="k">Games to idle</div></div>
+					<div class="stat"><div class="v" id="cs-skipped">0</div><div class="k">Skipped (never played)</div></div>
+				</div>
+				<div class="behavior">Behavior: <b id="cs-mode"></b> · Order: <b id="cs-order"></b>
+					<button class="linkish" id="cs-change">Change</button></div>
+				<div id="cards-list"></div>
+				<div class="panel-body" style="border-top:1px solid var(--border)">
+					<div class="actions" style="margin-top:0">
+						<button class="primary" id="start-cards">▶ Start card idling</button>
+						<span class="error" id="cards-error"></span>
+					</div>
+				</div>
+			</div>
+
+			<!-- hours queue (when not idling) -->
 			<div id="setup" class="panel">
 				<h2>Idle queue <span id="queue-count" class="muted"></span><span class="spacer"></span>
 					<button class="small" id="queue-cards" title="Add every game that still has card drops">🃏 Add card games</button>
@@ -223,7 +302,7 @@
 
 			<!-- running session -->
 			<div id="running" class="panel hidden">
-				<h2>Now idling<span class="spacer"></span>
+				<h2><span id="run-title">Now idling</span><span class="spacer"></span>
 					<button class="small" id="pause">Pause</button>
 					<button class="small danger" id="stop">■ Stop</button></h2>
 				<div class="stats">
@@ -232,6 +311,7 @@
 					<div class="stat"><div class="v" id="st-done">0</div><div class="k">Targets reached</div></div>
 					<div class="stat"><div class="v" id="st-left">—</div><div class="k">Session limit</div></div>
 				</div>
+				<div id="st-phase" class="hidden"></div>
 				<div id="session-games"></div>
 			</div>
 
@@ -242,6 +322,41 @@
 		</div>
 	</section>
 </main>
+
+<dialog id="settings">
+	<h2><span>Settings</span><button class="small" id="close-settings" title="Close">✕</button></h2>
+	<div class="dlg-body">
+		<fieldset>
+			<legend>General</legend>
+			<label class="opt desk"><input type="checkbox" data-k="minimizeToTray"><span>Minimize to system tray
+				<small>Minimizing or closing the window keeps idling in the tray. Off: closing quits.</small></span></label>
+			<label class="opt"><input type="checkbox" data-k="darkTheme"><span>Dark theme</span></label>
+			<label class="opt"><input type="checkbox" data-k="showUsername"><span>Show Steam username of signed-in user</span></label>
+			<label class="opt desk"><input type="checkbox" data-k="preventSleep"><span>Prevent computer from sleeping while idling</span></label>
+			<label class="opt"><input type="checkbox" data-k="shutdownWhenDone"><span>Shut down computer when done
+				<small>When every game reaches its target or runs out of cards (or the session limit is hit). You get 60 seconds to cancel.</small></span></label>
+			<label class="opt"><input type="checkbox" data-k="playedOnly"><span>Idle only games I've played before
+				<small>Skips games with 0 hours. Steam only refunds games played under 2 hours, so this keeps new games refundable.</small></span></label>
+		</fieldset>
+		<fieldset>
+			<legend>Card idling behavior</legend>
+			<label class="opt"><input type="radio" name="cardMode" value="fast"><span>Fast mode (recommended)
+				<small>All card games together for 5 minutes, then each one alone for a moment to trigger drops. Repeats.</small></span></label>
+			<label class="opt"><input type="radio" name="cardMode" value="all"><span>All games at once
+				<small>Every card game together the whole time.</small></span></label>
+			<label class="opt"><input type="radio" name="cardMode" value="individual"><span>Idle each game individually
+				<small>One game at a time until its drops run out.</small></span></label>
+			<label class="opt"><input type="radio" name="cardMode" value="simultaneous2h"><span>Idle games simultaneously up to 2 hours, then individually</span></label>
+			<label class="opt"><input type="radio" name="cardMode" value="individualFirst"><span>Idle games with more than 2 hours individually, then simultaneously</span></label>
+		</fieldset>
+		<fieldset>
+			<legend>Card idling order</legend>
+			<label class="opt"><input type="radio" name="cardOrder" value="default"><span>Default (alphabetical order)</span></label>
+			<label class="opt"><input type="radio" name="cardOrder" value="mostDrops"><span>Games with the most card drops first</span></label>
+			<label class="opt"><input type="radio" name="cardOrder" value="leastDrops"><span>Games with the fewest card drops first</span></label>
+		</fieldset>
+	</div>
+</dialog>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -296,6 +411,8 @@ function save() {
 
 const libGame = (appid) => S?.library.find((g) => g.appid === appid);
 const dropsOf = (appid) => S?.cards.drops[appid] || 0;
+const playedOnly = () => !!S?.config.playedOnly;
+const unplayed = (appid) => !(libGame(appid)?.minutes > 0);
 
 function renderQueue() {
 	$('#queue-count').textContent = queue.length ? `(${queue.length})` : '';
@@ -310,7 +427,8 @@ function renderQueue() {
 		let sub = `${cur} played`;
 		if (g && q.mode === 'total' && q.hours !== '') sub += ` · ${Math.max(0, q.hours - g.minutes / 60).toFixed(1)}h to go`;
 		if (g && q.mode === 'more' && q.hours !== '') sub += ` · ends at ${(g.minutes / 60 + +q.hours).toFixed(1)}h`;
-		if (q.mode === 'cards') sub += S.cards.checkedAt ? ` · ${dropsOf(q.appid)} card drop(s) left` : ' · card drops not checked yet';
+		if (playedOnly() && unplayed(q.appid)) sub += ' · <span class="warn">never played, will be skipped</span>';
+		else if (q.mode === 'cards') sub += S.cards.checkedAt ? ` · ${dropsOf(q.appid)} card drop(s) left` : ' · card drops not checked yet';
 		return `<div class="qrow" data-i="${i}">
 			${iconHtml(g?.icon)}
 			<div style="min-width:0"><div class="name">${esc(name)}</div><div class="sub">${sub}</div></div>
@@ -347,7 +465,7 @@ $('#queue').addEventListener('click', (e) => {
 $('#queue-cards').onclick = () => {
 	const have = new Set(queue.map((q) => q.appid));
 	for (const q of queue) if (dropsOf(q.appid)) q.mode = 'cards';
-	const add = Object.keys(S.cards.drops).map(Number).filter((id) => !have.has(id));
+	const add = Object.keys(S.cards.drops).map(Number).filter((id) => !have.has(id) && !(playedOnly() && unplayed(id)));
 	add.sort((a, b) => dropsOf(b) - dropsOf(a));
 	for (const appid of add) queue.push({ appid, mode: 'cards', hours: '' });
 	renderQueue(); renderLibrary(true); save();
@@ -355,7 +473,124 @@ $('#queue-cards').onclick = () => {
 $('#queue-clear').onclick = () => { queue = []; renderQueue(); renderLibrary(true); save(); };
 ['#set-stop', '#set-persona', '#set-custom', '#set-max'].forEach((s) => $(s).addEventListener('change', save));
 
+// ---------- settings dialog ----------
+
+const MODE_NAMES = { fast: 'Fast mode', all: 'All at once', individual: 'One at a time', simultaneous2h: 'Together until 2h, then one at a time', individualFirst: 'Over 2h one at a time, then together' };
+const ORDER_NAMES = { default: 'Alphabetical', mostDrops: 'Most drops first', leastDrops: 'Fewest drops first' };
+
+function applyTheme(theme) {
+	document.documentElement.dataset.theme = theme;
+	try { localStorage.setItem('theme', theme); } catch {}
+}
+try { applyTheme(localStorage.getItem('theme') || 'dark'); } catch { applyTheme('dark'); }
+
+function fillSettings() {
+	const c = S.config;
+	document.querySelectorAll('#settings [data-k]').forEach((el) => {
+		el.checked = el.dataset.k === 'darkTheme' ? c.theme !== 'light' : !!c[el.dataset.k];
+	});
+	document.querySelectorAll('#settings input[type=radio]').forEach((el) => { el.checked = c[el.name] === el.value; });
+	document.querySelectorAll('#settings .desk').forEach((el) => el.classList.toggle('hidden', !S.desktop));
+}
+async function setPref(patch) {
+	Object.assign(S.config, patch);
+	if (patch.theme) applyTheme(patch.theme);
+	refreshViews();
+	try { await api('/api/settings', patch); } catch (e) { alert(e.message); }
+}
+$('#settings').addEventListener('change', (e) => {
+	const el = e.target;
+	if (el.dataset.k === 'darkTheme') setPref({ theme: el.checked ? 'dark' : 'light' });
+	else if (el.dataset.k) setPref({ [el.dataset.k]: el.checked });
+	else if (el.type === 'radio') setPref({ [el.name]: el.value });
+});
+const openSettings = () => { fillSettings(); $('#settings').showModal(); };
+$('#open-settings').onclick = openSettings;
+$('#cs-change').onclick = openSettings;
+$('#close-settings').onclick = () => $('#settings').close();
+$('#settings').addEventListener('click', (e) => { if (e.target.id === 'settings') $('#settings').close(); });  // backdrop
+
+// re-render everything that depends on settings
+function refreshViews() {
+	renderQueue(); renderLibrary(true); renderCardsInfo(); renderCardIdler(true);
+	$('#account').textContent = S.config.showUsername ? (S.account || '') : '';
+}
+
+// ---------- hours / card idler tabs ----------
+
+let idlerMode = 'hours';
+try { idlerMode = localStorage.getItem('idlerMode') === 'cards' ? 'cards' : 'hours'; } catch {}
+function showMode(mode) {
+	idlerMode = mode;
+	try { localStorage.setItem('idlerMode', mode); } catch {}
+	document.querySelectorAll('#modetabs button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+	if (S) render();
+}
+$('#modetabs').onclick = (e) => { if (e.target.dataset.mode) showMode(e.target.dataset.mode); };
+showMode(idlerMode);
+
+// ---------- card idler ----------
+
+function cardGames() {
+	const list = Object.entries(S.cards.drops).map(([id, drops]) => {
+		const g = libGame(+id);
+		return { appid: +id, name: g?.name || `App ${id}`, icon: g?.icon, minutes: g?.minutes || 0, drops, skip: playedOnly() && !(g?.minutes > 0) };
+	});
+	const byName = (a, b) => a.name.localeCompare(b.name);
+	const order = S.config.cardOrder;
+	const cmp = order === 'mostDrops' ? (a, b) => b.drops - a.drops || byName(a, b)
+		: order === 'leastDrops' ? (a, b) => a.drops - b.drops || byName(a, b) : byName;
+	list.sort((a, b) => a.skip - b.skip || cmp(a, b));   // skipped games last
+	return list;
+}
+
+let cardKey = '';
+function renderCardIdler(force) {
+	const c = S.cards;
+	const key = `${c.checkedAt}|${c.loading}|${c.error}|${S.config.cardOrder}|${S.config.cardMode}|${S.config.playedOnly}|${S.library.length}`;
+	if (!force && key === cardKey) return;
+	cardKey = key;
+	const list = cardGames();
+	const todo = list.filter((g) => !g.skip);
+	$('#cs-drops').textContent = c.checkedAt ? todo.reduce((a, g) => a + g.drops, 0) : '—';
+	$('#cs-games').textContent = c.checkedAt ? todo.length : '—';
+	$('#cs-skipped').textContent = list.length - todo.length;
+	$('#cs-mode').textContent = MODE_NAMES[S.config.cardMode];
+	$('#cs-order').textContent = ORDER_NAMES[S.config.cardOrder];
+	$('#cards-refresh-2').disabled = c.loading || !c.ready;
+	$('#start-cards').disabled = c.loading || (c.checkedAt && !todo.length);
+	$('#cards-list').innerHTML = !c.checkedAt
+		? `<div class="empty">${c.loading ? 'Checking your card drops…' : c.error ? esc(c.error) : c.ready ? 'Card drops not checked yet.' : 'Waiting for Steam web login…'}</div>`
+		: !list.length ? '<div class="empty">🎉 No card drops left in any of your games.</div>'
+		: list.map((g) => `<div class="row ${g.skip ? 'skip' : ''}">
+			${iconHtml(g.icon)}
+			<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
+			${g.skip ? '<span class="tag">never played · skipped</span>' : ''}
+			<span class="drops">🃏 ${g.drops}</span>
+			<span class="hours">${hours(g.minutes)}</span>
+		</div>`).join('');
+}
+$('#cards-refresh-2').onclick = async () => {
+	$('#cards-error').textContent = '';
+	try { await api('/api/cards/refresh', {}); } catch (e) { $('#cards-error').textContent = e.message; }
+	poll();
+};
+$('#start-cards').onclick = async (e) => {
+	$('#cards-error').textContent = '';
+	e.target.disabled = true;
+	try { await api('/api/start-cards', {}); await poll(); }
+	catch (err) { $('#cards-error').textContent = err.message; }
+	finally { e.target.disabled = false; }
+};
+$('#cancel-shutdown').onclick = async () => { await api('/api/cancel-shutdown', {}); poll(); };
+
 // ---------- library ----------
+
+function addButton(appid, inQueue) {
+	if (inQueue.has(appid)) return '<button class="small" disabled>Added</button>';
+	if (playedOnly() && unplayed(appid)) return '<button class="small" disabled title="You haven\'t played this yet. Turn off &quot;Only games I\'ve played before&quot; to add it.">Unplayed</button>';
+	return `<button class="small" data-add="${appid}">+ Add</button>`;
+}
 
 function renderLibrary(force) {
 	const term = $('#lib-search').value.trim().toLowerCase();
@@ -370,11 +605,11 @@ function renderLibrary(force) {
 		<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
 		${dropsOf(g.appid) ? `<span class="drops" title="Card drops remaining">🃏 ${dropsOf(g.appid)}</span>` : ''}
 		<span class="hours">${hours(g.minutes)}</span>
-		<button class="small" data-add="${g.appid}" ${inQueue.has(g.appid) ? 'disabled' : ''}>${inQueue.has(g.appid) ? 'Added' : '+ Add'}</button>
+		${addButton(g.appid, inQueue)}
 	</div>`).join('');
 	if (/^\d+$/.test(term) && !S.library.some((g) => String(g.appid) === term)) {
 		html = `<div class="row"><div class="icon"></div><div class="name">AppID ${term} <span class="muted">(not in library)</span></div>
-			<button class="small" data-add="${term}" ${inQueue.has(+term) ? 'disabled' : ''}>+ Add</button></div>` + html;
+			${addButton(+term, inQueue)}</div>` + html;
 	}
 	$('#lib-list').innerHTML = html || `<div class="empty">${S.library.length ? 'No matches.' : 'Loading library…'}</div>`;
 }
@@ -415,6 +650,9 @@ function renderSession(s) {
 	$('#st-active').textContent = paused ? '0' : s.games.filter((g) => g.active).length;
 	$('#st-done').textContent = `${s.games.filter((g) => g.done).length}/${s.games.filter((g) => g.targetMin != null || g.cards).length}`;
 	$('#st-left').textContent = s.stopAfterHours ? clock(Math.max(0, s.stopAfterHours * 3600000 - s.idledMs)) + ' left' : 'none';
+	$('#run-title').textContent = s.kind === 'cards' ? `Card idling · ${MODE_NAMES[S.config.cardMode]}` : 'Now idling';
+	$('#st-phase').classList.toggle('hidden', !s.phase);
+	$('#st-phase').textContent = s.phase || '';
 	$('#session-games').innerHTML = s.games.map((g) => {
 		const pct = g.targetMin ? Math.min(100, (g.minutes / g.targetMin) * 100) : 100;
 		const state = g.done ? '<span class="tag done">✔ done</span>'
@@ -502,7 +740,13 @@ function render() {
 	$('#login').classList.toggle('hidden', loggedIn);
 	$('#app').classList.toggle('hidden', !loggedIn);
 	$('#logout').classList.toggle('hidden', !loggedIn);
-	$('#account').textContent = S.account || '';
+	$('#open-settings').classList.toggle('hidden', !loggedIn);
+	$('#account').textContent = S.config.showUsername ? (S.account || '') : '';
+	if ((S.config.theme || 'dark') !== document.documentElement.dataset.theme) applyTheme(S.config.theme || 'dark');
+
+	const banner = $('#shutdown-banner');
+	banner.classList.toggle('hidden', !S.shutdownAt);
+	if (S.shutdownAt) $('#shutdown-text').textContent = `Shutting down the computer in ${Math.max(0, Math.ceil((S.shutdownAt - Date.now()) / 1000))} s`;
 
 	const pill = $('#status-pill');
 	const s = S.session;
@@ -541,8 +785,11 @@ function render() {
 		renderQueue();
 	}
 
-	$('#setup').classList.toggle('hidden', !!s);
+	$('#modetabs').classList.toggle('hidden', !!s);
+	$('#setup').classList.toggle('hidden', !!s || idlerMode !== 'hours');
+	$('#cards-setup').classList.toggle('hidden', !!s || idlerMode !== 'cards');
 	$('#running').classList.toggle('hidden', !s);
+	if (!s && idlerMode === 'cards') renderCardIdler();
 	if (s) renderSession(s);
 	const hadLib = libKey.split('|')[0] !== '0' && libKey !== '';
 	renderLibrary();
