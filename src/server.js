@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { EventEmitter } = require('events');
+const { exec } = require('child_process');
 const SteamUser = require('steam-user');
 const QRCode = require('qrcode');
 const { startQrLogin } = require('./lib/qr-login');
@@ -46,14 +47,27 @@ const config = Object.assign({
 	resyncMinutes: 10,
 	cardCheckMinutes: 10,
 	stopAfterHours: null,
+	playedOnly: false,     // skip games with no playtime (keeps them refundable)
+	cardMode: 'fast',      // fast | all | individual | simultaneous2h | individualFirst
+	cardOrder: 'default',  // default (A-Z) | mostDrops | leastDrops
+	theme: 'dark',
+	showUsername: true,
+	minimizeToTray: true,  // desktop app only
+	preventSleep: true,    // desktop app only
+	shutdownWhenDone: false,
 	games: [],
 }, readJson(CONFIG_FILE, {}));
 const state = readJson(STATE_FILE, { addTargets: {} });
 
 // ---------- app state ----------
 
-// 'log' (message) for every activity line; 'notify' (message) for ones worth a desktop notification
+// 'log' (message) for every activity line; 'notify' (message) for ones worth a desktop notification;
+// 'session' (idling: boolean) when idling starts/stops
 const events = new EventEmitter();
+const CARD_MODES = ['fast', 'all', 'individual', 'simultaneous2h', 'individualFirst'];
+const CARD_ORDERS = ['default', 'mostDrops', 'leastDrops'];
+const FAST_ALL_MS = 5 * 60_000;   // fast mode: all card games together this long...
+const FAST_SOLO_MS = 15_000;      // ...then each one alone this long, then re-check drops
 
 const logLines = [];
 function log(msg, notify = false) {
@@ -105,7 +119,7 @@ client.on('loggedOn', async () => {
 	if (session) {
 		session.disconnected = false;
 		session.lastTick = Date.now();
-		applyGames();
+		applyGames(false, true);
 	}
 	refreshLibrary().catch((err) => log(`Couldn't load library: ${err.message}`));
 });
@@ -150,7 +164,7 @@ client.on('playingState', (blocked) => {
 		session.blocked = false;
 		session.lastTick = Date.now();
 		log('Other session ended - resuming.');
-		applyGames();
+		applyGames(false, true);
 	}
 });
 
@@ -221,16 +235,76 @@ async function refreshLibrary() {
 const progress = (g) => Math.max(g.apiMin, g.baseMin + g.localMs / 60000);
 const isPaused = () => session && (session.paused || session.blocked || session.disconnected);
 
-function applyGames() {
+function sortCardGames(games) {
+	const byName = (a, b) => a.name.localeCompare(b.name);
+	if (config.cardOrder === 'mostDrops') return games.sort((a, b) => (b.dropsLeft ?? 0) - (a.dropsLeft ?? 0) || byName(a, b));
+	if (config.cardOrder === 'leastDrops') return games.sort((a, b) => (a.dropsLeft ?? 0) - (b.dropsLeft ?? 0) || byName(a, b));
+	return games.sort(byName);
+}
+
+// Which card games run right now, depending on the card idling behavior.
+function pickCardGames(cardGames) {
+	if (!cardGames.length) return [];
+	const under2h = cardGames.filter((g) => progress(g) < 120);
+	const over2h = cardGames.filter((g) => progress(g) >= 120);
+	switch (config.cardMode) {
+		case 'all': return cardGames;
+		case 'individual': return cardGames.slice(0, 1);
+		case 'simultaneous2h': return under2h.length ? under2h : cardGames.slice(0, 1);
+		case 'individualFirst': return over2h.length ? over2h.slice(0, 1) : cardGames;
+		default: {   // fast
+			const ph = session.phase;
+			return ph.name === 'solo' ? [cardGames[ph.idx % cardGames.length]] : cardGames;
+		}
+	}
+}
+
+function describePhase() {
+	if (!session || !session.games.some((g) => g.cards && !g.done)) return null;
+	if (config.cardMode !== 'fast') return null;
+	const left = Math.max(0, session.phase.until - Date.now());
+	return session.phase.name === 'solo'
+		? `Fast mode: each game alone for a moment to trigger drops`
+		: `Fast mode: all card games together (${Math.ceil(left / 60000)} min left)`;
+}
+
+function applyGames(quiet = false, force = false) {
 	if (!session) return;
 	const max = Math.min(config.maxConcurrent, STEAM_MAX_GAMES - (config.customGameName ? 1 : 0));
-	const next = session.games.filter((g) => !g.done).slice(0, max);
+	const pending = session.games.filter((g) => !g.done);
+	const cardGames = sortCardGames(pending.filter((g) => g.cards));
+	const next = [...pickCardGames(cardGames), ...pending.filter((g) => !g.cards)].slice(0, max);
 	const changed = next.map((g) => g.appid).join() !== session.active.map((g) => g.appid).join();
 	session.active = next;
 	const list = next.map((g) => g.appid);
 	if (config.customGameName) list.unshift(config.customGameName);
-	client.gamesPlayed(isPaused() ? [] : list);
-	if (changed && !isPaused()) log(`Idling ${next.length} game(s): ${next.map((g) => g.name).join(', ') || '(none)'}`);
+	const send = isPaused() ? [] : list;
+	if (force || JSON.stringify(send) !== session.lastSent) {
+		client.gamesPlayed(send);
+		session.lastSent = JSON.stringify(send);
+	}
+	if (changed && next.length && !isPaused() && !quiet) log(`Idling ${next.length} game(s): ${next.map((g) => g.name).join(', ') || '(none)'}`);
+}
+
+// fast mode: all together for 5 min -> each game alone for 15 s -> re-check drops -> repeat
+function advanceFastMode(now) {
+	if (config.cardMode !== 'fast') return;
+	const cardGames = session.games.filter((g) => g.cards && !g.done);
+	if (!cardGames.length || now < session.phase.until) return;
+	const ph = session.phase;
+	if (ph.name === 'all') {
+		session.phase = { name: 'solo', idx: 0, until: now + FAST_SOLO_MS };
+		log(`Fast mode: idling each of ${cardGames.length} card game(s) on its own for a moment.`);
+		applyGames(true);
+	} else if (ph.idx + 1 < cardGames.length) {
+		session.phase = { name: 'solo', idx: ph.idx + 1, until: now + FAST_SOLO_MS };
+		applyGames(true);
+	} else {
+		session.phase = { name: 'all', idx: 0, until: now + FAST_ALL_MS };
+		log(`Fast mode: idling all ${cardGames.length} card game(s) together for 5 minutes.`);
+		applyGames(true);
+		refreshCards().catch((err) => log(`Card check failed: ${err.message}`));
+	}
 }
 
 function tick() {
@@ -251,14 +325,51 @@ function tick() {
 		}
 	}
 	if (changed) applyGames();
+	else if (config.cardMode === 'simultaneous2h' || config.cardMode === 'individualFirst') applyGames();  // games cross 2h
+	advanceFastMode(now);
 
-	if (session.games.every((g) => g.done)) return stopSession('All targets reached.', true);
+	if (session.games.every((g) => g.done)) return finishSession(session.kind === 'cards' ? 'All card drops collected.' : 'All targets reached.');
 	if (session.stopAfterHours && session.idledMs >= session.stopAfterHours * 3_600_000) {
-		return stopSession(`Session limit of ${session.stopAfterHours}h reached.`, true);
+		return finishSession(`Session limit of ${session.stopAfterHours}h reached.`);
 	}
 }
 
-function startSession(games) {
+// natural end of a session (not a manual stop): optionally shut the computer down
+function finishSession(reason) {
+	stopSession(reason, true);
+	if (config.shutdownWhenDone) scheduleShutdown();
+}
+
+let shutdownTimer = null;
+function scheduleShutdown() {
+	app.shutdownAt = Date.now() + 60_000;
+	log('Shutting down the computer in 60 seconds (you can cancel this).', true);
+	shutdownTimer = setTimeout(() => {
+		app.shutdownAt = null;
+		const cmd = process.platform === 'win32' ? 'shutdown /s /t 0'
+			: process.platform === 'darwin' ? `osascript -e 'tell app "System Events" to shut down'`
+			: 'systemctl poweroff';
+		log('Shutting down now.');
+		exec(cmd, (err) => err && log(`Couldn't shut down: ${err.message}`));
+	}, 60_000);
+}
+function cancelShutdown() {
+	clearTimeout(shutdownTimer);
+	shutdownTimer = null;
+	if (app.shutdownAt) log('Shutdown cancelled.');
+	app.shutdownAt = null;
+}
+
+const hasPlayed = (appid) => (app.library.find((a) => a.appid === appid)?.minutes || 0) > 0;
+
+function startSession(games, kind = 'hours') {
+	cancelShutdown();
+	if (config.playedOnly) {
+		const skipped = games.filter((g) => !hasPlayed(g.appid));
+		games = games.filter((g) => hasPlayed(g.appid));
+		if (!games.length) throw new Error("None of these games have been played before. Turn off \"Only games I've played\" to idle them.");
+		for (const g of skipped) log(`Skipping ${app.library.find((a) => a.appid === g.appid)?.name || `App ${g.appid}`} - never played.`);
+	}
 	if (session) stopSession('Restarting with new settings.');
 	const resolved = games.map((g) => {
 		const owned = app.library.find((a) => a.appid === g.appid);
@@ -298,7 +409,10 @@ function startSession(games) {
 		lastTick: Date.now(),
 		startedAt: Date.now(),
 		stopAfterHours: config.stopAfterHours,
+		kind,
+		phase: { name: 'all', idx: 0, until: Date.now() + FAST_ALL_MS },
 	};
+	events.emit('session', true);
 	log(`Started idling ${resolved.length} game(s).`);
 	for (const g of resolved) if (g.done) log(`${g.name} ${g.cards ? 'has no card drops left' : 'is already past its target'} - skipping.`);
 	applyGames();
@@ -320,6 +434,7 @@ function stopSession(reason, notify = false) {
 	session = null;
 	client.gamesPlayed([]);
 	log(reason, notify);
+	events.emit('session', false);
 }
 
 // ---------- http api ----------
@@ -331,6 +446,8 @@ function snapshot() {
 		error: app.error,
 		account: app.account,
 		hasSavedSession: fs.existsSync(SESSION_FILE),
+		desktop: process.env.IDLER_DESKTOP === '1',
+		shutdownAt: app.shutdownAt || null,
 		config: { ...config, password: undefined },
 		library: app.library,
 		qr: app.qr,
@@ -341,6 +458,8 @@ function snapshot() {
 			disconnected: session.disconnected,
 			idledMs: session.idledMs,
 			stopAfterHours: session.stopAfterHours,
+			kind: session.kind,
+			phase: describePhase(),
 			games: session.games.map((g) => ({
 				appid: g.appid, name: g.name, icon: g.icon,
 				minutes: progress(g), targetMin: g.targetMin, done: g.done,
@@ -376,6 +495,16 @@ function applySettings(body) {
 		config.stopAfterHours = h > 0 ? h : null;
 		if (session) session.stopAfterHours = config.stopAfterHours;
 	}
+	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'preventSleep', 'shutdownWhenDone']) {
+		if (k in body) config[k] = !!body[k];
+	}
+	if (CARD_MODES.includes(body.cardMode) && body.cardMode !== config.cardMode) {
+		config.cardMode = body.cardMode;
+		if (session) { session.phase = { name: 'all', idx: 0, until: Date.now() + FAST_ALL_MS }; applyGames(); }
+	}
+	if (CARD_ORDERS.includes(body.cardOrder)) { config.cardOrder = body.cardOrder; if (session) applyGames(); }
+	if (body.theme === 'dark' || body.theme === 'light') config.theme = body.theme;
+	events.emit('config', config);
 	if ('maxConcurrent' in body) config.maxConcurrent = Math.min(STEAM_MAX_GAMES, Math.max(1, parseInt(body.maxConcurrent, 10) || STEAM_MAX_GAMES));
 	if (body.games) config.games = cleanGames(body.games);
 	writeJson(CONFIG_FILE, config);
@@ -469,6 +598,17 @@ const routes = {
 		startSession(config.games);
 	},
 
+	// card idler: farm every game that still has drops, using the card behavior + order settings
+	'POST /api/start-cards': async () => {
+		if (app.status !== 'loggedIn') throw new Error('Log in first');
+		try { await refreshCards(); } catch (err) { if (!app.cards.checkedAt) throw new Error(`Couldn't check card drops: ${err.message}`); }
+		const games = Object.keys(app.cards.drops).map(Number);
+		if (!games.length) throw new Error('No games with card drops left.');
+		startSession(games.map((appid) => ({ appid, cards: true })), 'cards');
+	},
+
+	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
+
 	'POST /api/stop': () => { stopSession('Stopped.'); },
 
 	'POST /api/pause': () => {
@@ -476,7 +616,7 @@ const routes = {
 		session.paused = !session.paused;
 		session.lastTick = Date.now();
 		log(session.paused ? 'Paused.' : 'Resumed.');
-		applyGames();
+		applyGames(false, true);
 	},
 
 	'POST /api/reset-targets': () => {
@@ -549,7 +689,9 @@ function stop() {
 
 const isIdling = () => !!session;
 
-module.exports = { start, stop, events, isIdling, DATA_DIR };
+const getConfig = () => config;
+
+module.exports = { start, stop, events, isIdling, getConfig, DATA_DIR };
 
 if (require.main === module) {
 	start().catch((err) => { console.error(err.message); process.exit(1); });

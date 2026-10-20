@@ -49,6 +49,7 @@ function parseArgs(argv) {
 		else if (a === '--reset') args.reset = true;
 		else if (a === '--qr') args.qr = true;
 		else if (a === '--cards') args.cards = true;
+		else if (a === '--played-only') args.playedOnly = true;
 		else if (a === '--help' || a === '-h') args.help = true;
 		else { console.error(`Unknown argument: ${a}`); process.exit(1); }
 	}
@@ -79,6 +80,7 @@ Usage:
   npm run cli -- --reset             forget saved "addHours" targets
   npm run cli -- --qr                log in by scanning a QR code in the Steam app
   npm run cli -- --cards             idle every game that still has card drops
+  npm run cli -- --played-only       skip games you've never played (keeps them refundable)
 
 Game spec:  APPID          idle forever
             APPID:100      idle until total playtime reaches 100h
@@ -212,6 +214,17 @@ async function main() {
 		for (const a of apps) owned.set(a.appid, a);
 	}
 	await syncPlaytime();
+
+	if (args.playedOnly || config.playedOnly) {
+		const before = config.games.length;
+		config.games = config.games.filter((g) => owned.get(g.appid)?.playtime_forever > 0);
+		if (before !== config.games.length) log(`Skipping ${before - config.games.length} game(s) you've never played.`);
+		if (!config.games.length) {
+			log('None of these games have been played before.');
+			client.logOff();
+			return;
+		}
+	}
 
 	const games = config.games.map((g) => {
 		const info = owned.get(g.appid);
