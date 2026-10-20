@@ -64,7 +64,8 @@
       ],
       "category": "Game",
       "icon": "assets/icon.png",
-      "artifactName": "Steam-Master-Idler-${version}-${arch}.${ext}"
+      "artifactName": "Steam-Master-Idler-${version}-${arch}.${ext}",
+      "maintainer": "MEZTKING <MEZTKING@users.noreply.github.com>"
     }
   },
   "dependencies": {
