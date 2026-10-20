@@ -28,14 +28,27 @@ function parseBadgesPage(html) {
 }
 
 async function fetchPage(steamID64, cookies, page) {
-	const url = `https://steamcommunity.com/profiles/${steamID64}/badges/?l=english&p=${page}`;
-	const res = await fetch(url, {
-		headers: { Cookie: cookies.join('; '), 'User-Agent': 'Mozilla/5.0 steam-idler' },
-		redirect: 'manual',
-	});
-	if (res.status >= 300 && res.status < 400) throw new Error('Not logged in to steamcommunity.com');
-	if (!res.ok) throw new Error(`steamcommunity.com returned HTTP ${res.status}`);
-	return parseBadgesPage(await res.text());
+	let url = `https://steamcommunity.com/profiles/${steamID64}/badges/?l=english&p=${page}`;
+	// Follow redirects ourselves so the cookies go along: profiles with a custom URL redirect
+	// /profiles/<id>/badges -> /id/<name>/badges. Only a redirect to the login page means logged out.
+	for (let hop = 0; hop < 5; hop++) {
+		const res = await fetch(url, {
+			headers: { Cookie: cookies.join('; '), 'User-Agent': 'Mozilla/5.0 steam-master-idler' },
+			redirect: 'manual',
+		});
+		if (res.status >= 300 && res.status < 400) {
+			const next = new URL(res.headers.get('location') || '', url);
+			if (next.hostname !== 'steamcommunity.com' || /\/login/i.test(next.pathname)) {
+				throw new Error('Not logged in to steamcommunity.com');
+			}
+			if (!next.searchParams.has('p')) { next.searchParams.set('l', 'english'); next.searchParams.set('p', page); }
+			url = next.toString();
+			continue;
+		}
+		if (!res.ok) throw new Error(`steamcommunity.com returned HTTP ${res.status}`);
+		return parseBadgesPage(await res.text());
+	}
+	throw new Error('steamcommunity.com redirected too many times');
 }
 
 // Returns a Map appid -> {appid, name, dropsLeft} for every game badge (dropsLeft may be 0).
