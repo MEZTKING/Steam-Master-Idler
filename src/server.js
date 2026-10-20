@@ -14,16 +14,19 @@ const SteamUser = require('steam-user');
 const QRCode = require('qrcode');
 const { startQrLogin } = require('./lib/qr-login');
 const { fetchCardDrops } = require('./lib/cards');
+const { createDebugLog } = require('./lib/debuglog');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const CONFIG_FILE = process.env.IDLER_CONFIG || path.join(DATA_DIR, 'config.json');
 const SESSION_FILE = path.join(DATA_DIR, '.session');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
+const debugLog = createDebugLog(path.join(DATA_DIR, 'logs'));
 const INDEX_HTML = path.join(__dirname, '..', 'public', 'index.html');
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const HOST = '127.0.0.1';
 
+const VERSION = require('../package.json').version;
 const STEAM_MAX_GAMES = 32;
 const PERSONA = {
 	offline: SteamUser.EPersonaState.Offline,
@@ -73,6 +76,7 @@ const logLines = [];
 function log(msg, notify = false) {
 	const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
 	console.log(line);
+	debugLog.write('info', msg);
 	logLines.push(line);
 	if (logLines.length > 200) logLines.shift();
 	events.emit('log', msg);
@@ -91,6 +95,9 @@ const app = {
 let guardCallback = null;
 let qrLogin = null;
 let webCookies = null;
+
+// what the diagnostics report shows (never cookie values, tokens or passwords)
+const diag = { webSessionAt: null, webSessionError: null, cookieNames: [], cards: null, steamCheck: null };
 
 // idling session (null when not idling)
 let session = null;
@@ -126,9 +133,17 @@ client.on('loggedOn', async () => {
 
 client.on('accountInfo', (name) => { app.account = name; });
 
+client.on('debug', (msg) => {
+	debugLog.write('steam', msg);   // includes "Sending message: ClientGamesPlayed..." / "Handled message: ..."
+	if (/web session/i.test(String(msg))) diag.webSessionError = { at: Date.now(), message: String(msg) };
+});
+
 client.on('webSession', (sessionID, cookies) => {
 	const first = !webCookies;
 	webCookies = cookies;
+	diag.webSessionAt = Date.now();
+	diag.cookieNames = cookies.map((c) => c.split('=')[0]);
+	debugLog.write('diag', 'web session received, cookies:', diag.cookieNames.join(','));
 	if (first) refreshCards().catch(() => {});
 });
 
@@ -138,6 +153,7 @@ client.on('disconnected', () => {
 });
 
 client.on('error', (err) => {
+	debugLog.write('error', `steam client error eresult=${err.eresult}`, err);
 	if (err.eresult === SteamUser.EResult.LoggedInElsewhere) {
 		log('Logged out: a game was launched on another device. Retrying in 5 minutes...');
 		if (session) session.disconnected = true;
@@ -156,6 +172,7 @@ client.on('error', (err) => {
 
 client.on('playingState', (blocked, playingApp) => {
 	app.playing = { blocked, appid: playingApp };
+	debugLog.write('diag', `playingState blocked=${blocked} playingApp=${playingApp}`);
 	if (!session) return;
 	if (blocked && !session.blocked) {
 		session.blocked = true;
@@ -185,12 +202,16 @@ async function refreshCards() {
 	app.cards.loading = true;
 	try {
 		const drops = await fetchCardDrops(client.steamID.getSteamID64(), webCookies);
+		diag.cards = { at: Date.now(), ok: true, games: drops.size, trace: drops.trace };
+		debugLog.write('diag', `card check ok: ${drops.size} badges`, drops.trace);
 		app.cards.drops = Object.fromEntries([...drops.values()].filter((g) => g.dropsLeft > 0).map((g) => [g.appid, g.dropsLeft]));
 		app.cards.checkedAt = Date.now();
 		app.cards.error = null;
 		if (session) updateSessionDrops();
 	} catch (err) {
 		app.cards.error = err.message;
+		diag.cards = { at: Date.now(), ok: false, error: err.message, trace: err.trace || [] };
+		debugLog.write('diag', `card check failed: ${err.message}`, err.trace || [], err.stack || '');
 		// cookies expire; ask steam-user for fresh ones (at most every 5 min)
 		if (/logged in/i.test(err.message) && Date.now() - lastWebLogOn > 5 * 60_000 && app.status === 'loggedIn') {
 			lastWebLogOn = Date.now();
@@ -283,6 +304,7 @@ function applyGames(quiet = false, force = false) {
 	if (force || JSON.stringify(send) !== session.lastSent) {
 		client.gamesPlayed(send);
 		session.lastSent = JSON.stringify(send);
+		debugLog.write('diag', 'gamesPlayed sent', send);
 	}
 	if (send.length && (changed || force)) scheduleVerify();
 	if (changed && next.length && !isPaused() && !quiet) log(`Idling ${next.length} game(s): ${next.map((g) => g.name).join(', ') || '(none)'}`);
@@ -298,24 +320,31 @@ async function verifyInGame() {
 	if (!session) return;
 	scheduleVerify(5 * 60_000);   // and keep re-checking while idling
 	if (isPaused() || !session.active.length) return;
-	if (config.persona === 'invisible' || config.persona === 'offline') {
-		session.steamCheck = { state: 'hidden', at: Date.now() };
-		return;
-	}
+	const me = client.steamID.getSteamID64();
+	const activeIds = session.active.map((g) => String(g.appid));
+	// Three ways Steam tells us what we're playing; any one confirming is enough.
+	const sources = {
+		playingSession: String(app.playing?.appid || 0),      // ClientPlayingSessionState
+		persona: String(client.users?.[me]?.gameid || 0),       // our own persona update
+		lookup: '0',
+	};
 	try {
-		const me = client.steamID.getSteamID64();
 		const { personas } = await client.getPersonas([me]);
-		const gameid = String(personas[me]?.gameid || personas[me]?.game_played_app_id || '0');
-		const ok = gameid !== '0';
-		const was = session.steamCheck?.state;
-		const name = session.games.find((g) => String(g.appid) === gameid)?.name || personas[me]?.game_name || `App ${gameid}`;
-		session.steamCheck = { state: ok ? 'ok' : 'notInGame', game: ok ? name : null, at: Date.now() };
-		if (ok && was !== 'ok') log(`✔ Steam confirms you're in-game (${name}). Playtime is being counted.`);
-		if (!ok && was !== 'notInGame') {
-			log('⚠ Steam does not show you in-game. If the Steam app is open and running a game on this or another PC, close the game; idling resumes automatically.');
-		}
+		sources.lookup = String(personas[me]?.gameid || personas[me]?.game_played_app_id || 0);
 	} catch (err) {
-		session.steamCheck = { state: 'unknown', at: Date.now() };
+		sources.lookup = `error: ${err.message}`;
+	}
+	const hit = Object.values(sources).find((id) => activeIds.includes(id) || (config.customGameName && id.length > 10 && id !== '0'));
+	const hidden = config.persona === 'invisible' || config.persona === 'offline';
+	const was = session.steamCheck?.state;
+	const state = hit ? 'ok' : hidden ? 'hidden' : 'notInGame';
+	const name = hit ? (session.games.find((g) => String(g.appid) === hit)?.name || `App ${hit}`) : null;
+	session.steamCheck = { state, game: name, at: Date.now() };
+	diag.steamCheck = { at: Date.now(), state, sources, active: activeIds, playing: app.playing || null };
+	debugLog.write('diag', 'in-game check', diag.steamCheck);
+	if (state === 'ok' && was !== 'ok') log(`✔ Steam confirms you're in-game (${name}). Playtime is being counted.`);
+	if (state === 'notInGame' && was !== 'notInGame') {
+		log("⚠ Steam does not show you in-game. If a game is running in the Steam app (here or on another PC), close it; idling resumes automatically. Otherwise use Settings → Save debug report and send the file over.");
 	}
 }
 
@@ -485,6 +514,7 @@ function snapshot() {
 		account: app.account,
 		hasSavedSession: fs.existsSync(SESSION_FILE),
 		desktop: process.env.IDLER_DESKTOP === '1',
+		version: VERSION,
 		shutdownAt: app.shutdownAt || null,
 		config: { ...config, password: undefined },
 		library: app.library,
@@ -552,6 +582,30 @@ function applySettings(body) {
 
 const routes = {
 	'GET /api/state': () => snapshot(),
+
+	// support info to paste into a bug report: no cookie values, tokens or passwords
+	'GET /api/diagnostics': () => ({
+		version: VERSION,
+		platform: `${process.platform} ${process.arch}`,
+		logsFolder: debugLog.dir,
+		electron: process.versions.electron || null,
+		node: process.versions.node,
+		desktop: process.env.IDLER_DESKTOP === '1',
+		status: app.status,
+		persona: config.persona,
+		playedOnly: config.playedOnly,
+		cardMode: config.cardMode,
+		libraryGames: app.library.length,
+		playingState: app.playing || null,
+		session: session && {
+			kind: session.kind, paused: session.paused, blocked: session.blocked, disconnected: session.disconnected,
+			idledMin: Math.round(session.idledMs / 60000), active: session.active.map((g) => g.appid), lastSent: session.lastSent,
+		},
+		webSession: { at: diag.webSessionAt, cookieNames: diag.cookieNames, lastError: diag.webSessionError },
+		cardCheck: diag.cards,
+		steamCheck: diag.steamCheck,
+		log: logLines.slice(-60),
+	}),
 
 	'POST /api/login': (body) => {
 		if (app.status === 'loggedIn' || app.status === 'loggingIn') throw new Error('Already logged in');
@@ -647,6 +701,27 @@ const routes = {
 		startSession(games.map((appid) => ({ appid, cards: true })), 'cards');
 	},
 
+	// one text file with the diagnostics + the debug log, to attach to a bug report
+	'GET /api/debug-report': () => {
+		const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+		const body = [
+			`Steam Master Idler debug report - ${new Date().toISOString()}`,
+			'Tokens, cookie values and passwords are removed.',
+			'',
+			'=== Diagnostics ===',
+			JSON.stringify(routes['GET /api/diagnostics'](), null, 2),
+			'',
+			'=== Debug log (newest last) ===',
+			debugLog.tail(4000),
+		].join('\n');
+		return { raw: true, type: 'text/plain; charset=utf-8', filename: `steam-master-idler-debug-${stamp}.txt`, body };
+	},
+
+	'POST /api/open-logs': () => {
+		if (process.env.IDLER_DESKTOP !== '1') throw new Error(`The logs are in ${debugLog.dir}`);
+		events.emit('openPath', debugLog.dir);
+	},
+
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
 	'POST /api/stop': () => { stopSession('Stopped.'); },
@@ -694,11 +769,17 @@ const server = http.createServer(async (req, res) => {
 		raw += chunk;
 		if (raw.length > 1e6) { res.writeHead(413); return res.end(); }
 	}
+	if (req.method === 'POST') debugLog.write('api', req.method, url);   // never the body (it can hold a password)
 	try {
 		const result = await handler(raw ? JSON.parse(raw) : {});
+		if (result?.raw) {
+			res.writeHead(200, { 'Content-Type': result.type, 'Content-Disposition': `attachment; filename="${result.filename}"`, 'Cache-Control': 'no-store' });
+			return res.end(result.body);
+		}
 		res.writeHead(200, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify(result ?? { ok: true }));
 	} catch (err) {
+		debugLog.write('error', `${req.method} ${url} failed:`, err);
 		res.writeHead(400, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify({ error: err.message }));
 	}
@@ -710,6 +791,7 @@ function start(port = PORT) {
 		server.once('error', reject);
 		server.listen(port, HOST, () => {
 			const url = `http://${HOST}:${server.address().port}`;
+			debugLog.write('info', `=== start v${VERSION} ${process.platform} ${process.arch} electron=${process.versions.electron || '-'} node=${process.versions.node} desktop=${process.env.IDLER_DESKTOP === '1'} ===`);
 			log(`GUI running at ${url}`);
 			loginWithSavedSession();
 			resolve(url);
@@ -728,6 +810,10 @@ function stop() {
 }
 
 const isIdling = () => !!session;
+
+// crashes and stray promise errors go into the debug log too (without changing how they're handled)
+process.on('uncaughtExceptionMonitor', (err) => debugLog.write('crash', err));
+process.on('unhandledRejection', (err) => debugLog.write('error', 'unhandled rejection:', err));
 
 const getConfig = () => config;
 

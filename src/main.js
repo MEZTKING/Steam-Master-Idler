@@ -53,6 +53,17 @@ function createWindow() {
 		if (!target.startsWith(url)) e.preventDefault();
 	});
 
+	// "Save debug report": put it in Downloads and show it in the file manager
+	win.webContents.session.on('will-download', (e, item) => {
+		item.setSavePath(path.join(app.getPath('downloads'), item.getFilename()));
+		item.once('done', (_, state) => {
+			if (state === 'completed') {
+				shell.showItemInFolder(item.getSavePath());
+				notify(`Debug report saved to ${item.getSavePath()}`);
+			}
+		});
+	});
+
 	// "Minimize to system tray": minimizing or closing hides the window and keeps idling.
 	// With it off, minimize works normally and closing the window quits.
 	win.on('minimize', (e) => {
@@ -104,6 +115,7 @@ function buildTrayMenu() {
 			click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] }),
 		},
 		{ label: 'Open data folder', click: () => shell.openPath(server.DATA_DIR) },
+		{ label: 'Open logs folder', click: () => shell.openPath(require('path').join(server.DATA_DIR, 'logs')) },
 		{ type: 'separator' },
 		{ label: 'Quit', click: () => app.quit() },
 	]));
@@ -134,6 +146,7 @@ app.whenReady().then(async () => {
 	if (process.platform === 'win32') app.setAppUserModelId('com.meztking.steammasteridler');
 	url = await server.start(0);   // any free local port
 	server.events.on('notify', notify);
+	server.events.on('openPath', (dir) => shell.openPath(dir));
 	server.events.on('session', updateSleepBlocker);
 	server.events.on('config', updateSleepBlocker);
 	createTray();

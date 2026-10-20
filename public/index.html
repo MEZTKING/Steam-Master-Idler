@@ -180,6 +180,8 @@
 	.opt { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
 	.opt input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); flex-shrink: 0; }
 	.opt small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+	a.btn { display: inline-block; text-decoration: none; color: inherit; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 3px 9px; font-size: 13px; }
+	a.btn:hover { border-color: var(--accent); }
 	.ic { width: 1.05em; height: 1.05em; vertical-align: -0.17em; }
 	.steam-check { padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
 	.steam-check.ok { color: var(--good); }
@@ -190,7 +192,7 @@
 <body>
 
 <header>
-	<h1>Steam Master Idler</h1>
+	<h1>Steam Master Idler <span id="version" class="muted" style="font-size:12px;font-weight:400"></span></h1>
 	<span id="status-pill" class="pill">offline</span>
 	<span class="spacer"></span>
 	<span id="account" class="muted"></span>
@@ -359,6 +361,16 @@
 			<label class="opt"><input type="radio" name="cardOrder" value="default"><span>Default (alphabetical order)</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="mostDrops"><span>Games with the most card drops first</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="leastDrops"><span>Games with the fewest card drops first</span></label>
+		</fieldset>
+		<fieldset>
+			<legend>Troubleshooting</legend>
+			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
+				<a class="small btn" id="save-report" href="/api/debug-report" download>Save debug report</a>
+				<button class="small" id="copy-diag">Copy diagnostics</button>
+				<button class="small desk" id="open-logs">Open logs folder</button>
+			</div>
+			<span class="muted" id="diag-status" style="font-size:12px">The debug report is one .txt file with everything the app and Steam exchanged. Attach it to your message. Passwords, tokens and cookie values are removed.</span>
+			<textarea id="diag-text" class="hidden" readonly rows="8" style="width:100%;font:11px ui-monospace,Consolas,monospace;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px"></textarea>
 		</fieldset>
 	</div>
 </dialog>
@@ -573,7 +585,7 @@ function renderCardIdler(force) {
 	$('#cards-refresh-2').disabled = c.loading || !c.ready;
 	$('#start-cards').disabled = c.loading || (c.checkedAt && !todo.length);
 	$('#cards-list').innerHTML = !c.checkedAt
-		? `<div class="empty">${c.loading ? 'Checking your card drops…' : c.error ? esc(c.error) : c.ready ? 'Card drops not checked yet.' : 'Waiting for Steam web login…'}</div>`
+		? `<div class="empty">${c.loading ? 'Checking your card drops…' : c.error ? `${esc(c.error)}<br><small>Settings → Save debug report, and send the file over so this can be fixed.</small>` : c.ready ? 'Card drops not checked yet.' : 'Waiting for Steam web login…'}</div>`
 		: !list.length ? '<div class="empty">🎉 No card drops left in any of your games.</div>'
 		: list.map((g) => `<div class="row ${g.skip ? 'skip' : ''}">
 			${iconHtml(g.icon)}
@@ -595,6 +607,24 @@ $('#start-cards').onclick = async (e) => {
 	catch (err) { $('#cards-error').textContent = err.message; }
 	finally { e.target.disabled = false; }
 };
+$('#copy-diag').onclick = async () => {
+	const text = JSON.stringify(await api('/api/diagnostics'), null, 2);
+	const box = $('#diag-text');
+	box.value = text;
+	try {
+		await navigator.clipboard.writeText(text);
+		$('#diag-status').textContent = '✔ Copied. Paste it into your message.';
+	} catch {
+		box.classList.remove('hidden'); box.select();
+		$('#diag-status').textContent = 'Select all of the text below and copy it.';
+	}
+};
+$('#open-logs').onclick = async () => {
+	try { await api('/api/open-logs', {}); } catch (e) { $('#diag-status').textContent = e.message; }
+};
+$('#save-report').addEventListener('click', () => {
+	$('#diag-status').textContent = '✔ Saving the debug report. Attach the .txt file to your message.';
+});
 $('#cancel-shutdown').onclick = async () => { await api('/api/cancel-shutdown', {}); poll(); };
 
 // ---------- library ----------
@@ -764,6 +794,7 @@ function render() {
 	$('#app').classList.toggle('hidden', !loggedIn);
 	$('#logout').classList.toggle('hidden', !loggedIn);
 	$('#open-settings').classList.toggle('hidden', !loggedIn);
+	$('#version').textContent = S.version ? `v${S.version}` : '';
 	$('#account').textContent = S.config.showUsername ? (S.account || '') : '';
 	if ((S.config.theme || 'dark') !== document.documentElement.dataset.theme) applyTheme(S.config.theme || 'dark');
 
