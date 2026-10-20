@@ -154,7 +154,8 @@ client.on('error', (err) => {
 	log(`Login error: ${err.message}`);
 });
 
-client.on('playingState', (blocked) => {
+client.on('playingState', (blocked, playingApp) => {
+	app.playing = { blocked, appid: playingApp };
 	if (!session) return;
 	if (blocked && !session.blocked) {
 		session.blocked = true;
@@ -283,7 +284,39 @@ function applyGames(quiet = false, force = false) {
 		client.gamesPlayed(send);
 		session.lastSent = JSON.stringify(send);
 	}
+	if (send.length && (changed || force)) scheduleVerify();
 	if (changed && next.length && !isPaused() && !quiet) log(`Idling ${next.length} game(s): ${next.map((g) => g.name).join(', ') || '(none)'}`);
+}
+
+// Ask Steam what it shows us playing, so the page can prove idling really works.
+let verifyTimer = null;
+function scheduleVerify(delay = 15_000) {
+	clearTimeout(verifyTimer);
+	verifyTimer = setTimeout(verifyInGame, delay);
+}
+async function verifyInGame() {
+	if (!session) return;
+	scheduleVerify(5 * 60_000);   // and keep re-checking while idling
+	if (isPaused() || !session.active.length) return;
+	if (config.persona === 'invisible' || config.persona === 'offline') {
+		session.steamCheck = { state: 'hidden', at: Date.now() };
+		return;
+	}
+	try {
+		const me = client.steamID.getSteamID64();
+		const { personas } = await client.getPersonas([me]);
+		const gameid = String(personas[me]?.gameid || personas[me]?.game_played_app_id || '0');
+		const ok = gameid !== '0';
+		const was = session.steamCheck?.state;
+		const name = session.games.find((g) => String(g.appid) === gameid)?.name || personas[me]?.game_name || `App ${gameid}`;
+		session.steamCheck = { state: ok ? 'ok' : 'notInGame', game: ok ? name : null, at: Date.now() };
+		if (ok && was !== 'ok') log(`✔ Steam confirms you're in-game (${name}). Playtime is being counted.`);
+		if (!ok && was !== 'notInGame') {
+			log('⚠ Steam does not show you in-game. If the Steam app is open and running a game on this or another PC, close the game; idling resumes automatically.');
+		}
+	} catch (err) {
+		session.steamCheck = { state: 'unknown', at: Date.now() };
+	}
 }
 
 // fast mode: all together for 5 min -> each game alone for 15 s -> re-check drops -> repeat
@@ -409,10 +442,12 @@ function startSession(games, kind = 'hours') {
 		lastTick: Date.now(),
 		startedAt: Date.now(),
 		stopAfterHours: config.stopAfterHours,
+		steamCheck: null,
 		kind,
 		phase: { name: 'all', idx: 0, until: Date.now() + FAST_ALL_MS },
 	};
 	events.emit('session', true);
+	if (session.blocked) log('Steam says a game is running in another Steam session (another PC, or the Steam app here). Idling starts as soon as it closes.');
 	log(`Started idling ${resolved.length} game(s).`);
 	for (const g of resolved) if (g.done) log(`${g.name} ${g.cards ? 'has no card drops left' : 'is already past its target'} - skipping.`);
 	applyGames();
@@ -431,6 +466,7 @@ function stopSession(reason, notify = false) {
 	if (!session) return;
 	timers.forEach(clearInterval);
 	timers = [];
+	clearTimeout(verifyTimer);
 	session = null;
 	client.gamesPlayed([]);
 	log(reason, notify);
@@ -440,6 +476,8 @@ function stopSession(reason, notify = false) {
 // ---------- http api ----------
 
 function snapshot() {
+	// time idled since the last tick, so clocks in the page move every second, not every 5
+	const live = session && !isPaused() ? Date.now() - session.lastTick : 0;
 	return {
 		status: app.status,
 		guard: app.guard,
@@ -456,13 +494,15 @@ function snapshot() {
 			paused: session.paused,
 			blocked: session.blocked,
 			disconnected: session.disconnected,
-			idledMs: session.idledMs,
+			idledMs: session.idledMs + live,
 			stopAfterHours: session.stopAfterHours,
 			kind: session.kind,
 			phase: describePhase(),
+			steamCheck: session.steamCheck,
 			games: session.games.map((g) => ({
 				appid: g.appid, name: g.name, icon: g.icon,
 				minutes: progress(g), targetMin: g.targetMin, done: g.done,
+				sessionMs: g.localMs + (session.active.includes(g) ? live : 0),
 				cards: g.cards, dropsLeft: g.dropsLeft,
 				active: session.active.includes(g),
 			})),

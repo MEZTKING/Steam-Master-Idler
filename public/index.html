@@ -180,6 +180,10 @@
 	.opt { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
 	.opt input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); flex-shrink: 0; }
 	.opt small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+	.ic { width: 1.05em; height: 1.05em; vertical-align: -0.17em; }
+	.steam-check { padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+	.steam-check.ok { color: var(--good); }
+	.steam-check.bad { color: var(--warn); }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -245,8 +249,8 @@
 			</div>
 
 			<div class="modetabs" id="modetabs">
-				<button data-mode="hours" class="active">⏱ Hours idler</button>
-				<button data-mode="cards">🃏 Card idler</button>
+				<button data-mode="hours" class="active"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.5v3.2l2.2 1.4M6.5 1.5h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Hours idler</button>
+				<button data-mode="cards"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1.5" width="10" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.2l1.6 2.8L8 10.8 6.4 8z" fill="currentColor"/></svg> Card idler</button>
 			</div>
 
 			<!-- card idler (when not idling) -->
@@ -272,7 +276,7 @@
 			<!-- hours queue (when not idling) -->
 			<div id="setup" class="panel">
 				<h2>Idle queue <span id="queue-count" class="muted"></span><span class="spacer"></span>
-					<button class="small" id="queue-cards" title="Add every game that still has card drops">🃏 Add card games</button>
+					<button class="small" id="queue-cards" title="Add every game that still has card drops"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1.5" width="10" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.2l1.6 2.8L8 10.8 6.4 8z" fill="currentColor"/></svg> Add card games</button>
 					<button class="small" id="queue-clear">Clear</button></h2>
 				<div id="queue"></div>
 				<div class="panel-body" style="border-top:1px solid var(--border)">
@@ -311,6 +315,7 @@
 					<div class="stat"><div class="v" id="st-done">0</div><div class="k">Targets reached</div></div>
 					<div class="stat"><div class="v" id="st-left">—</div><div class="k">Session limit</div></div>
 				</div>
+				<div id="st-steam" class="steam-check"></div>
 				<div id="st-phase" class="hidden"></div>
 				<div id="session-games"></div>
 			</div>
@@ -363,7 +368,9 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hours = (min) => (min / 60).toFixed(1) + 'h';
 const clock = (ms) => { const m = Math.floor(ms / 60000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
-const iconHtml = (icon) => icon ? `<img class="icon" src="${esc(icon)}" alt="" loading="lazy">` : '<div class="icon"></div>';
+const iconHtml = (icon) => icon ? `<img class="icon" src="${esc(icon)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), { className: 'icon' }))">` : '<div class="icon"></div>';
+const CARD = '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1.5" width="10" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.2l1.6 2.8L8 10.8 6.4 8z" fill="currentColor"/></svg>';
+const clockS = (ms) => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 
 async function api(path, body) {
 	const res = await fetch(path, body === undefined ? {} : {
@@ -414,7 +421,13 @@ const dropsOf = (appid) => S?.cards.drops[appid] || 0;
 const playedOnly = () => !!S?.config.playedOnly;
 const unplayed = (appid) => !(libGame(appid)?.minutes > 0);
 
+let renderingQueue = false;   // replacing a focused input fires 'change' again mid-render
 function renderQueue() {
+	if (renderingQueue) return;
+	renderingQueue = true;
+	try { renderQueueRows(); } finally { renderingQueue = false; }
+}
+function renderQueueRows() {
 	$('#queue-count').textContent = queue.length ? `(${queue.length})` : '';
 	if (!queue.length) {
 		$('#queue').innerHTML = '<div class="empty">Add games from your library to start.</div>';
@@ -566,7 +579,7 @@ function renderCardIdler(force) {
 			${iconHtml(g.icon)}
 			<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
 			${g.skip ? '<span class="tag">never played · skipped</span>' : ''}
-			<span class="drops">🃏 ${g.drops}</span>
+			<span class="drops">${CARD} ${g.drops}</span>
 			<span class="hours">${hours(g.minutes)}</span>
 		</div>`).join('');
 }
@@ -603,7 +616,7 @@ function renderLibrary(force) {
 	let html = list.slice(0, 400).map((g) => `<div class="row">
 		${iconHtml(g.icon)}
 		<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
-		${dropsOf(g.appid) ? `<span class="drops" title="Card drops remaining">🃏 ${dropsOf(g.appid)}</span>` : ''}
+		${dropsOf(g.appid) ? `<span class="drops" title="Card drops remaining">${CARD} ${dropsOf(g.appid)}</span>` : ''}
 		<span class="hours">${hours(g.minutes)}</span>
 		${addButton(g.appid, inQueue)}
 	</div>`).join('');
@@ -624,10 +637,10 @@ function renderCardsInfo() {
 	const games = Object.keys(c.drops).length;
 	const total = Object.values(c.drops).reduce((a, b) => a + b, 0);
 	const ago = c.checkedAt ? Math.round((Date.now() - c.checkedAt) / 60000) : null;
-	$('#cards-info').textContent = c.loading ? 'Card drops: checking…'
-		: c.error && !c.checkedAt ? `Card drops: ${c.error}`
+	$('#cards-info').innerHTML = c.loading ? 'Card drops: checking…'
+		: c.error && !c.checkedAt ? `Card drops: ${esc(c.error)}`
 		: !c.checkedAt ? (c.ready ? 'Card drops: not checked' : 'Card drops: waiting for web login…')
-		: `🃏 ${total} card drop(s) in ${games} game(s) · ${ago ? ago + ' min ago' : 'just now'}`;
+		: `${CARD} ${total} card drop(s) in ${games} game(s) · ${ago ? ago + ' min ago' : 'just now'}`;
 	$('#cards-info').title = c.error || '';
 	$('#cards-refresh').disabled = c.loading || !c.ready;
 	$('#queue-cards').disabled = !games;
@@ -646,7 +659,15 @@ $('#lib-refresh').onclick = async (e) => {
 function renderSession(s) {
 	const paused = s.paused || s.blocked || s.disconnected;
 	$('#pause').textContent = s.paused ? '▶ Resume' : '❚❚ Pause';
-	$('#st-time').textContent = clock(s.idledMs);
+	$('#st-time').textContent = clockS(s.idledMs);
+	const chk = s.steamCheck?.state;
+	const steamEl = $('#st-steam');
+	steamEl.className = 'steam-check' + (chk === 'ok' ? ' ok' : chk === 'notInGame' ? ' bad' : '');
+	steamEl.textContent = paused ? (s.blocked ? 'Steam status: paused, a game is running in another Steam session (another PC or the Steam app). Idling resumes when it closes.' : 'Steam status: paused')
+		: chk === 'ok' ? `Steam status: ✔ In-game (${s.steamCheck.game}). Steam is counting playtime.`
+		: chk === 'notInGame' ? "Steam status: ⚠ Steam doesn't show you in-game. Is a game running in the Steam app?"
+		: chk === 'hidden' ? "Steam status: your status is Invisible/Offline, so Steam hides what you're playing (playtime still counts)."
+		: 'Steam status: checking with Steam…';
 	$('#st-active').textContent = paused ? '0' : s.games.filter((g) => g.active).length;
 	$('#st-done').textContent = `${s.games.filter((g) => g.done).length}/${s.games.filter((g) => g.targetMin != null || g.cards).length}`;
 	$('#st-left').textContent = s.stopAfterHours ? clock(Math.max(0, s.stopAfterHours * 3600000 - s.idledMs)) + ' left' : 'none';
@@ -658,8 +679,10 @@ function renderSession(s) {
 		const state = g.done ? '<span class="tag done">✔ done</span>'
 			: g.active && !paused ? '<span class="tag on">● idling</span>'
 			: g.active ? '<span class="tag">paused</span>' : '<span class="tag">queued</span>';
-		const prog = g.cards ? `${hours(g.minutes)} · ${g.dropsLeft == null ? 'checking cards…' : `🃏 ${g.dropsLeft} drop(s) left`}`
-			: g.targetMin ? `${hours(g.minutes)} / ${hours(g.targetMin)} · ${pct.toFixed(1)}%` : `${hours(g.minutes)} · no limit`;
+		const h2 = (m) => (m / 60).toFixed(2) + 'h';
+		const thisRun = g.sessionMs ? ` · +${clockS(g.sessionMs)}` : '';
+		const prog = g.cards ? `${h2(g.minutes)}${thisRun} · ${g.dropsLeft == null ? 'checking cards…' : `${CARD} ${g.dropsLeft} drop(s) left`}`
+			: g.targetMin ? `${h2(g.minutes)} / ${hours(g.targetMin)} · ${pct.toFixed(1)}%${thisRun}` : `${h2(g.minutes)} · no limit${thisRun}`;
 		const barCls = g.done ? 'done' : g.targetMin ? '' : `forever ${g.active && !paused ? '' : 'idle'}`;
 		return `<div class="srow">
 			${iconHtml(g.icon)}
@@ -811,7 +834,7 @@ async function poll() {
 	catch { $('#status-pill').textContent = 'GUI server not running'; $('#status-pill').className = 'pill'; }
 }
 poll();
-setInterval(poll, 2000);
+setInterval(poll, 1000);
 </script>
 </body>
 </html>
