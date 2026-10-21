@@ -468,7 +468,7 @@ function tick() {
 	else if (config.cardMode === 'simultaneous2h' || config.cardMode === 'individualFirst') applyGames();  // games cross 2h
 	advanceFastMode(now);
 
-	if (session.games.every((g) => g.done)) return finishSession(session.kind === 'cards' ? 'All card drops collected.' : 'All targets reached.');
+	if (session.games.every((g) => g.done)) return finishSession(session.kind === 'cards' ? 'All card drops collected.' : session.kind === 'mixed' ? 'All targets reached and card drops collected.' : 'All targets reached.');
 	if (session.stopAfterHours && session.idledMs >= session.stopAfterHours * 3_600_000) {
 		return finishSession(`Session limit of ${session.stopAfterHours}h reached.`);
 	}
@@ -524,6 +524,26 @@ function ensureCardChecks() {
 	session.cardTimer = setInterval(() => refreshCards().catch((err) => log(`Card check failed: ${err.message}`)), config.cardCheckMinutes * 60_000);
 	timers.push(session.cardTimer);
 	if (!app.cards.checkedAt) refreshCards().catch((err) => log(`Card check failed: ${err.message}`));
+}
+
+// Card games join a running session next to the games already idling (hours targets keep going).
+// A game that's already idling for hours is left as it is; it drops its cards anyway.
+function addCardGames(appids) {
+	const running = new Set(session.games.filter((g) => !g.done).map((g) => g.appid));
+	let added = appids.filter((id) => !running.has(id));
+	if (config.playedOnly) {
+		const skipped = added.filter((id) => !hasPlayed(id));
+		added = added.filter((id) => hasPlayed(id));
+		if (skipped.length) log(`Skipping ${skipped.length} card game(s) you've never played.`);
+	}
+	if (!added.length) throw new Error('Every game with card drops is already idling.');
+	session.games = session.games.filter((g) => !added.includes(g.appid));   // replace finished entries
+	for (const appid of added) session.games.push(resolveGame({ appid, cards: true }));
+	if (session.kind !== 'cards') session.kind = 'mixed';
+	ensureCardChecks();
+	log(`Added ${added.length} card game(s) to the running session.`);
+	applyGames(false, true);
+	saveResume();
 }
 
 // queue/config entry ({appid, targetHours | addHours | cards}) -> a game being idled
@@ -869,6 +889,7 @@ const routes = {
 		try { await refreshCards(); } catch (err) { if (!app.cards.checkedAt) throw new Error(`Couldn't check card drops: ${err.message}`); }
 		const games = Object.keys(app.cards.drops).map(Number);
 		if (!games.length) throw new Error('No games with card drops left.');
+		if (session) return addCardGames(games);   // already idling hours: farm cards alongside
 		startSession(games.map((appid) => ({ appid, cards: true })), 'cards');
 	},
 

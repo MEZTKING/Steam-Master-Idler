@@ -115,6 +115,26 @@
 		.stats { gap: 16px; }
 		.stat .v { font-size: 17px; }
 	}
+	/* Phones: the library and activity scroll sideways, so swiping up/down always moves the page */
+	.swipe-hint { display: none; font-size: 11px; text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; }
+	@media (max-width: 560px) {
+		.swipe-hint { display: inline; }
+		#library { max-height: none; }
+		#lib-list {
+			display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: 88%;
+			overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+		}
+		#lib-list .row { scroll-snap-align: start; border-right: 1px solid var(--border); }
+		#lib-list .empty { grid-row: 1 / span 4; }
+		#log {
+			display: flex; gap: 10px; max-height: none; overflow-x: auto; overflow-y: hidden;
+			overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-bottom: 14px;
+		}
+		#log .log-line {
+			flex: 0 0 80%; scroll-snap-align: end; white-space: normal;
+			background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+		}
+	}
 	@media (max-width: 420px) {
 		#version { display: none; }   /* also shown in Settings → Troubleshooting */
 		header { gap: 6px; }
@@ -282,7 +302,7 @@
 	<!-- main app -->
 	<section id="app" class="hidden">
 		<div id="library" class="panel">
-			<h2>Library <span id="lib-count" class="muted"></span><span class="spacer"></span>
+			<h2>Library <span id="lib-count" class="muted"></span><span class="spacer"></span><span class="swipe-hint">swipe ↔</span>
 				<button class="small" id="lib-refresh" title="Reload playtime from Steam">↻</button></h2>
 			<div class="search"><input id="lib-search" placeholder="Search games or AppID…"></div>
 			<div class="cards-bar"><span id="cards-info">Card drops: checking…</span><span class="spacer"></span>
@@ -356,6 +376,7 @@
 			<!-- running session -->
 			<div id="running" class="panel hidden">
 				<h2><span id="run-title">Now idling</span><span class="spacer"></span>
+					<button class="small hidden" id="run-add-cards" title="Farm cards from every game with drops left, alongside what's idling">+ Card games</button>
 					<button class="small" id="pause">Pause</button>
 					<button class="small danger" id="stop">■ Stop</button></h2>
 				<div class="stats">
@@ -370,7 +391,7 @@
 			</div>
 
 			<div class="panel">
-				<h2>Activity</h2>
+				<h2>Activity<span class="spacer"></span><span class="swipe-hint">swipe ↔</span></h2>
 				<div id="log"></div>
 			</div>
 		</div>
@@ -779,7 +800,13 @@ function renderSession(s) {
 	$('#st-active').textContent = s.games.filter(runningNow).length;
 	$('#st-done').textContent = `${s.games.filter((g) => g.done).length}/${s.games.filter((g) => g.targetMin != null || g.cards).length}`;
 	$('#st-left').textContent = s.stopAfterHours ? clock(Math.max(0, s.stopAfterHours * 3600000 - s.idledMs)) + ' left' : 'none';
-	$('#run-title').textContent = s.kind === 'cards' ? `Card idling · ${MODE_NAMES[S.config.cardMode]}` : 'Now idling';
+	$('#run-title').textContent = s.kind === 'cards' ? `Card idling · ${MODE_NAMES[S.config.cardMode]}`
+		: s.games.some((g) => g.cards && !g.done) ? `Hours + cards · ${MODE_NAMES[S.config.cardMode]}` : 'Now idling';
+	// card games that could still join: drops left, not already idling, played if that setting is on
+	const idlingIds = new Set(s.games.filter((g) => !g.done).map((g) => g.appid));
+	const joinable = Object.keys(S.cards.drops).map(Number).filter((id) => !idlingIds.has(id) && !(playedOnly() && unplayed(id)));
+	$('#run-add-cards').classList.toggle('hidden', !joinable.length);
+	$('#run-add-cards').textContent = `+ ${joinable.length} card game${joinable.length === 1 ? '' : 's'}`;
 	$('#st-phase').classList.toggle('hidden', !s.phase);
 	$('#st-phase').textContent = s.phase || '';
 	$('#session-games').innerHTML = s.games.map((g) => {
@@ -818,6 +845,12 @@ $('#session-games').addEventListener('click', async (e) => {
 	try { await api('/api/session/remove', { appid: +id }); } catch (err) { alert(err.message); }
 	poll();
 });
+$('#run-add-cards').onclick = async (e) => {
+	e.target.disabled = true;
+	try { await api('/api/start-cards', {}); } catch (err) { alert(err.message); }
+	e.target.disabled = false;
+	poll();
+};
 $('#stop').onclick = async () => { await api('/api/stop', {}); await poll(); };
 $('#pause').onclick = async () => { await api('/api/pause', {}); await poll(); };
 
@@ -958,12 +991,16 @@ function render() {
 	if (!s && S.cards.checkedAt !== lastCardsAt) { lastCardsAt = S.cards.checkedAt; renderQueue(); }
 	if (!hadLib && S.library.length && !s) renderQueue(); // names/icons arrive with the library
 
+	// one element per entry; phones show them as cards you swipe sideways (see the CSS)
 	const logEl = $('#log');
-	const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 10;
-	const text = S.log.join('\n');
-	if (logEl.textContent !== text) {
-		logEl.textContent = text;
-		if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+	const sideways = getComputedStyle(logEl).display === 'flex';
+	const atEnd = sideways ? logEl.scrollLeft + logEl.clientWidth >= logEl.scrollWidth - 10
+		: logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 10;
+	const key = S.log.join('\n');
+	if (logEl.dataset.key !== key) {
+		logEl.dataset.key = key;
+		logEl.innerHTML = S.log.map((l) => `<div class="log-line">${esc(l)}</div>`).join('');
+		if (atEnd) { if (sideways) logEl.scrollLeft = logEl.scrollWidth; else logEl.scrollTop = logEl.scrollHeight; }
 	}
 }
 
