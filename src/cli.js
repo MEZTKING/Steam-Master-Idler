@@ -15,7 +15,9 @@ const SESSION_FILE = path.join(DATA_DIR, '.session');   // refresh token, so you
 const STATE_FILE = path.join(DATA_DIR, 'state.json');   // resolved targets for "addHours" games
 
 const STEAM_MAX_GAMES = 32;
+// 'keep' = never touch the status, so your Steam app keeps whatever you set there
 const PERSONA = {
+	keep: null,
 	offline: SteamUser.EPersonaState.Offline,
 	online: SteamUser.EPersonaState.Online,
 	busy: SteamUser.EPersonaState.Busy,
@@ -97,7 +99,7 @@ async function main() {
 	const config = Object.assign({
 		username: '',
 		password: '',
-		persona: 'online',
+		persona: 'keep',
 		customGameName: '',
 		maxConcurrent: STEAM_MAX_GAMES,
 		resyncMinutes: 10,
@@ -112,6 +114,13 @@ async function main() {
 
 	const maxConcurrent = Math.min(config.maxConcurrent, STEAM_MAX_GAMES - (config.customGameName ? 1 : 0));
 	const state = readJson(STATE_FILE, { addTargets: {} });
+	if (config.persona === 'online' && !config.configVersion) config.persona = 'keep';   // old default overrode the Steam app's status
+	// fixed random login ID, so Steam doesn't replace the Steam app's session with ours (see server.js)
+	if (!state.logonID) {
+		state.logonID = 1 + Math.floor(Math.random() * 0xfffffffe);
+		writeJson(STATE_FILE, state);
+	}
+	const LOGON_OPTS = { logonID: state.logonID, machineName: 'Steam Master Idler' };
 
 	const client = new SteamUser({ autoRelogin: true, renewRefreshTokens: true });
 
@@ -119,7 +128,7 @@ async function main() {
 	const refreshToken = fs.existsSync(SESSION_FILE) ? fs.readFileSync(SESSION_FILE, 'utf8').trim() : null;
 	if (refreshToken && !args.qr) {
 		log('Logging in with saved session...');
-		client.logOn({ refreshToken });
+		client.logOn({ refreshToken, ...LOGON_OPTS });
 	} else if (args.qr) {
 		const qr = startQrLogin({
 			onQr: async (url) => console.log(`\nScan this in the Steam mobile app (Steam Guard → scan QR):\n\n${await QRCode.toString(url, { type: 'terminal', small: true })}`),
@@ -128,12 +137,12 @@ async function main() {
 		const { refreshToken: token, accountName } = await qr.done;
 		fs.writeFileSync(SESSION_FILE, token, { mode: 0o600 });
 		log(`QR login approved for ${accountName}.`);
-		client.logOn({ refreshToken: token });
+		client.logOn({ refreshToken: token, ...LOGON_OPTS });
 	} else {
 		const accountName = config.username || process.env.STEAM_USER || await ask('Steam username: ');
 		const password = config.password || process.env.STEAM_PASS || await ask('Steam password: ', true);
 		log(`Logging in as ${accountName}...`);
-		client.logOn({ accountName, password });
+		client.logOn({ accountName, password, ...LOGON_OPTS });
 	}
 	// Steam Guard codes are prompted for automatically on stdin by steam-user;
 	// mobile-app approvals also work.
@@ -148,7 +157,7 @@ async function main() {
 			log('Login failed (saved session expired or bad credentials). Run again to log in.');
 		} else if (err.eresult === SteamUser.EResult.LoggedInElsewhere) {
 			log('Logged out: a game was launched on another device. Retrying in 5 minutes...');
-			setTimeout(() => client.logOn({ refreshToken: fs.readFileSync(SESSION_FILE, 'utf8').trim() }), 5 * 60_000);
+			setTimeout(() => client.logOn({ refreshToken: fs.readFileSync(SESSION_FILE, 'utf8').trim(), ...LOGON_OPTS }), 5 * 60_000);
 			return;
 		} else {
 			log('Error:', err.message);
@@ -161,7 +170,7 @@ async function main() {
 
 	await new Promise((resolve) => client.once('loggedOn', resolve));
 	log(`Logged in as ${client.steamID.getSteamID64()}`);
-	client.setPersona(PERSONA[config.persona] ?? SteamUser.EPersonaState.Online);
+	if (PERSONA[config.persona] != null) client.setPersona(PERSONA[config.persona]);
 
 	// ---- --list mode ----
 	if (args.list) {

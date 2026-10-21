@@ -15,6 +15,7 @@ const QRCode = require('qrcode');
 const { startQrLogin } = require('./lib/qr-login');
 const { fetchCardDrops } = require('./lib/cards');
 const { createDebugLog } = require('./lib/debuglog');
+const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -28,7 +29,9 @@ const HOST = '127.0.0.1';
 
 const VERSION = require('../package.json').version;
 const STEAM_MAX_GAMES = 32;
+// 'keep' = never touch the status, so your Steam app keeps whatever you set there
 const PERSONA = {
+	keep: null,
 	offline: SteamUser.EPersonaState.Offline,
 	online: SteamUser.EPersonaState.Online,
 	busy: SteamUser.EPersonaState.Busy,
@@ -44,13 +47,14 @@ const fmtH = (min) => `${(min / 60).toFixed(2)}h`;
 const config = Object.assign({
 	username: '',
 	password: '',
-	persona: 'online',
+	persona: 'keep',
 	customGameName: '',
 	maxConcurrent: STEAM_MAX_GAMES,
 	resyncMinutes: 10,
 	cardCheckMinutes: 10,
 	stopAfterHours: null,
 	playedOnly: false,     // skip games with no playtime (keeps them refundable)
+	idleMethod: process.platform === 'win32' ? 'steamApp' : 'servers', // servers: our own Steam login plays the games | steamApp: through the Steam app on this PC
 	cardMode: 'fast',      // fast | all | individual | simultaneous2h | individualFirst
 	cardOrder: 'default',  // default (A-Z) | mostDrops | leastDrops
 	theme: 'dark',
@@ -61,6 +65,28 @@ const config = Object.assign({
 	games: [],
 }, readJson(CONFIG_FILE, {}));
 const state = readJson(STATE_FILE, { addTargets: {} });
+
+// Older versions defaulted to setting the status to Online, which overrides the Steam app's status.
+if (!config.configVersion) {
+	if (config.persona === 'online') config.persona = 'keep';
+	config.configVersion = 2;
+}
+// v3: on Windows idle through the Steam app by default, so your own games keep working alongside
+if (config.configVersion < 3) {
+	if (process.platform === 'win32') config.idleMethod = 'steamApp';
+	config.configVersion = 3;
+	writeJson(CONFIG_FILE, config);
+}
+
+// A fixed, random login ID for this install. Steam replaces a session when another login comes from the
+// same network with the same ID; steam-user's default (0) can collide with the Steam app, which then
+// drops to offline mode. With our own ID the idler and the Steam app stay logged in side by side.
+if (!state.logonID) {
+	state.logonID = 1 + Math.floor(Math.random() * 0xfffffffe);
+	writeJson(STATE_FILE, state);
+}
+const LOGON_OPTS = { logonID: state.logonID, machineName: 'Steam Master Idler' };
+const applyPersona = () => { if (PERSONA[config.persona] != null) client.setPersona(PERSONA[config.persona]); };
 
 // ---------- app state ----------
 
@@ -121,7 +147,7 @@ client.on('loggedOn', async () => {
 	app.guard = null;
 	app.error = null;
 	guardCallback = null;
-	client.setPersona(PERSONA[config.persona] ?? SteamUser.EPersonaState.Online);
+	applyPersona();
 	log(`Logged in as ${client.steamID.getSteamID64()}`);
 	if (session) {
 		session.disconnected = false;
@@ -155,7 +181,7 @@ client.on('disconnected', () => {
 client.on('error', (err) => {
 	debugLog.write('error', `steam client error eresult=${err.eresult}`, err);
 	if (err.eresult === SteamUser.EResult.LoggedInElsewhere) {
-		log('Logged out: a game was launched on another device. Retrying in 5 minutes...');
+		log('A game was started in Steam (here or on another PC), so Steam disconnected the idler. Steam only lets one session play at a time. Reconnecting every 5 minutes; idling resumes once that game is closed.');
 		if (session) session.disconnected = true;
 		setTimeout(loginWithSavedSession, 5 * 60_000);
 		return;
@@ -166,14 +192,16 @@ client.on('error', (err) => {
 	stopSession('Logged out.');
 	app.status = 'loggedOut';
 	app.guard = null;
-	app.error = err.message;
+	app.error = err.eresult === SteamUser.EResult.LogonSessionReplaced
+		? 'Steam replaced this login with another one from this network. Log in again.'
+		: err.message;
 	log(`Login error: ${err.message}`);
 });
 
 client.on('playingState', (blocked, playingApp) => {
 	app.playing = { blocked, appid: playingApp };
 	debugLog.write('diag', `playingState blocked=${blocked} playingApp=${playingApp}`);
-	if (!session) return;
+	if (!session || viaApp()) return;   // through the Steam app, your own games never conflict
 	if (blocked && !session.blocked) {
 		session.blocked = true;
 		client.gamesPlayed([]);
@@ -190,7 +218,7 @@ function loginWithSavedSession() {
 	if (!fs.existsSync(SESSION_FILE)) return false;
 	app.status = 'loggingIn';
 	log('Logging in with saved session...');
-	client.logOn({ refreshToken: fs.readFileSync(SESSION_FILE, 'utf8').trim() });
+	client.logOn({ refreshToken: fs.readFileSync(SESSION_FILE, 'utf8').trim(), ...LOGON_OPTS });
 	return true;
 }
 
@@ -255,7 +283,32 @@ async function refreshLibrary() {
 // ---------- idling ----------
 
 const progress = (g) => Math.max(g.apiMin, g.baseMin + g.localMs / 60000);
-const isPaused = () => session && (session.paused || session.blocked || session.disconnected);
+// how the games are played: our own Steam login (servers), or helpers through the Steam app on this PC
+const viaApp = () => config.idleMethod === 'steamApp';
+const steamApp = new SteamAppIdler();
+const helperErrors = new Map();   // appid -> last error logged, so each problem is logged once
+steamApp.on('debug', (msg) => debugLog.write('steamapp', msg));
+steamApp.on('ready', (appid, via) => {
+	helperErrors.delete(appid);
+	debugLog.write('steamapp', `ready ${appid} via ${via}`);
+	const name = session?.games.find((g) => g.appid === appid)?.name || `App ${appid}`;
+	log(`▶ ${name} is running through the Steam app.`);
+	scheduleVerify(10_000);
+});
+steamApp.on('error', (appid, message) => {
+	debugLog.write('steamapp', `error ${appid}: ${message}`);
+	if (helperErrors.get(appid) === message) return;
+	helperErrors.set(appid, message);
+	const name = session?.games.find((g) => g.appid === appid)?.name || `App ${appid}`;
+	log(`⚠ Couldn't run ${name} through the Steam app: ${message} Retrying every minute.`);
+});
+
+// through the Steam app, only games whose helper is connected are really running
+const isRunning = (g) => !viaApp() || steamApp.status()[g.appid]?.state === 'running';
+
+// Through the Steam app only a manual pause stops idling; playing elsewhere or our own login
+// reconnecting doesn't matter there.
+const isPaused = () => session && (session.paused || (!viaApp() && (session.blocked || session.disconnected)));
 
 function sortCardGames(games) {
 	const byName = (a, b) => a.name.localeCompare(b.name);
@@ -301,7 +354,11 @@ function applyGames(quiet = false, force = false) {
 	const list = next.map((g) => g.appid);
 	if (config.customGameName) list.unshift(config.customGameName);
 	const send = isPaused() ? [] : list;
-	if (force || JSON.stringify(send) !== session.lastSent) {
+	if (viaApp()) {
+		steamApp.set(isPaused() ? [] : next.map((g) => g.appid));   // custom status text needs our own login, so it's skipped here
+		if (session.lastSent !== '[]') { client.gamesPlayed([]); session.lastSent = '[]'; }   // our own login plays nothing
+	} else if (force || JSON.stringify(send) !== session.lastSent) {
+		steamApp.stopAll();
 		client.gamesPlayed(send);
 		session.lastSent = JSON.stringify(send);
 		debugLog.write('diag', 'gamesPlayed sent', send);
@@ -344,7 +401,9 @@ async function verifyInGame() {
 	debugLog.write('diag', 'in-game check', diag.steamCheck);
 	if (state === 'ok' && was !== 'ok') log(`✔ Steam confirms you're in-game (${name}). Playtime is being counted.`);
 	if (state === 'notInGame' && was !== 'notInGame') {
-		log("⚠ Steam does not show you in-game. If a game is running in the Steam app (here or on another PC), close it; idling resumes automatically. Otherwise use Settings → Save debug report and send the file over.");
+		log(viaApp()
+			? "⚠ Steam does not show you in-game yet. Make sure the Steam app is running and logged in to the same account as the idler. If it is, use Settings → Save debug report and send the file over."
+			: "⚠ Steam does not show you in-game. If a game is running in the Steam app (here or on another PC), close it, or switch Settings → Idling method to \"Through the Steam app\". Otherwise use Settings → Save debug report and send the file over.");
 	}
 }
 
@@ -369,16 +428,23 @@ function advanceFastMode(now) {
 	}
 }
 
+let lastHelperRetry = 0;
 function tick() {
 	if (!session) return;
 	const now = Date.now();
+	if (viaApp() && now - lastHelperRetry > 60_000) {   // e.g. Steam wasn't running yet
+		lastHelperRetry = now;
+		steamApp.retryFailed();
+		applyGames(true);
+	}
 	const dt = now - session.lastTick;
 	session.lastTick = now;
 	if (isPaused()) return;
 
-	session.idledMs += dt;
+	if (session.active.some(isRunning)) session.idledMs += dt;
 	let changed = false;
 	for (const g of session.active) {
+		if (!isRunning(g)) continue;
 		g.localMs += dt;
 		if (!g.cards && g.targetMin != null && !g.done && progress(g) >= g.targetMin) {
 			g.done = true;
@@ -498,6 +564,8 @@ function stopSession(reason, notify = false) {
 	clearTimeout(verifyTimer);
 	session = null;
 	client.gamesPlayed([]);
+	steamApp.stopAll();
+	helperErrors.clear();
 	log(reason, notify);
 	events.emit('session', false);
 }
@@ -506,7 +574,7 @@ function stopSession(reason, notify = false) {
 
 function snapshot() {
 	// time idled since the last tick, so clocks in the page move every second, not every 5
-	const live = session && !isPaused() ? Date.now() - session.lastTick : 0;
+	const live = session && !isPaused() && session.active.some(isRunning) ? Date.now() - session.lastTick : 0;
 	return {
 		status: app.status,
 		guard: app.guard,
@@ -515,6 +583,7 @@ function snapshot() {
 		hasSavedSession: fs.existsSync(SESSION_FILE),
 		desktop: process.env.IDLER_DESKTOP === '1',
 		version: VERSION,
+		steamApp: { supported: STEAM_APP_SUPPORTED, ...(STEAM_APP_SUPPORTED ? steamApp.available() : { ok: false }) },
 		shutdownAt: app.shutdownAt || null,
 		config: { ...config, password: undefined },
 		library: app.library,
@@ -527,14 +596,17 @@ function snapshot() {
 			idledMs: session.idledMs + live,
 			stopAfterHours: session.stopAfterHours,
 			kind: session.kind,
+			method: config.idleMethod,
+			effectivePaused: !!isPaused(),
 			phase: describePhase(),
 			steamCheck: session.steamCheck,
 			games: session.games.map((g) => ({
 				appid: g.appid, name: g.name, icon: g.icon,
 				minutes: progress(g), targetMin: g.targetMin, done: g.done,
-				sessionMs: g.localMs + (session.active.includes(g) ? live : 0),
+				sessionMs: g.localMs + (session.active.includes(g) && isRunning(g) ? live : 0),
 				cards: g.cards, dropsLeft: g.dropsLeft,
 				active: session.active.includes(g),
+				helper: viaApp() ? (steamApp.status()[g.appid] || null) : null,
 			})),
 		},
 		log: logLines.slice(-100),
@@ -557,13 +629,18 @@ function cleanGames(list) {
 function applySettings(body) {
 	if (body.persona in PERSONA) {
 		config.persona = body.persona;
-		if (app.status === 'loggedIn') client.setPersona(PERSONA[config.persona]);
+		if (app.status === 'loggedIn') applyPersona();
 	}
 	if (typeof body.customGameName === 'string') config.customGameName = body.customGameName.slice(0, 64);
 	if ('stopAfterHours' in body) {
 		const h = parseFloat(body.stopAfterHours);
 		config.stopAfterHours = h > 0 ? h : null;
 		if (session) session.stopAfterHours = config.stopAfterHours;
+	}
+	if ((body.idleMethod === 'servers' || body.idleMethod === 'steamApp') && body.idleMethod !== config.idleMethod) {
+		config.idleMethod = body.idleMethod;
+		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
+		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
 	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'preventSleep', 'shutdownWhenDone']) {
 		if (k in body) config[k] = !!body[k];
@@ -595,6 +672,8 @@ const routes = {
 		persona: config.persona,
 		playedOnly: config.playedOnly,
 		cardMode: config.cardMode,
+		idleMethod: config.idleMethod,
+		steamApp: { supported: STEAM_APP_SUPPORTED, ...(STEAM_APP_SUPPORTED ? steamApp.available() : {}), helpers: steamApp.status() },
 		libraryGames: app.library.length,
 		playingState: app.playing || null,
 		session: session && {
@@ -613,7 +692,7 @@ const routes = {
 		app.status = 'loggingIn';
 		app.error = null;
 		log(`Logging in as ${body.username}...`);
-		client.logOn({ accountName: body.username, password: body.password });
+		client.logOn({ accountName: body.username, password: body.password, ...LOGON_OPTS });
 	},
 
 	'POST /api/login/qr': async () => {
@@ -640,7 +719,7 @@ const routes = {
 			fs.writeFileSync(SESSION_FILE, refreshToken, { mode: 0o600 });
 			app.status = 'loggingIn';
 			log(`QR login approved for ${accountName}.`);
-			client.logOn({ refreshToken });
+			client.logOn({ refreshToken, ...LOGON_OPTS });
 		}).catch((err) => {
 			if (qrLogin !== attempt) return;
 			qrLogin = null;

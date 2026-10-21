@@ -42,6 +42,17 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false   # no code-signing certificate
 
+      # Smoke-test "idle through the Steam app" in the packaged Windows app: the helper must load koffi
+      # and a real DLL. kernel32.dll has no Steam entry points, so the expected answer is exactly that.
+      - name: Smoke-test Steam app helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $out = & "dist/win-unpacked/Steam Master Idler.exe" "dist/win-unpacked/resources/app.asar.unpacked/src/steamapp/helper.js" "C:\Windows\System32\kernel32.dll" 440 2>&1 | Out-String
+          Write-Host $out
+          if ($out -notmatch 'no usable entry points') { throw 'helper did not load koffi + DLL as expected' }
+
       - uses: actions/upload-artifact@v4
         with:
           name: Steam-Master-Idler-${{ runner.os }}
