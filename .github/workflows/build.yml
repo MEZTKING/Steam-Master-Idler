@@ -52,6 +52,7 @@ jobs:
           $out = & "dist/win-unpacked/Steam Master Idler.exe" "dist/win-unpacked/resources/app.asar.unpacked/src/steamapp/helper.js" "C:\Windows\System32\kernel32.dll" 440 2>&1 | Out-String
           Write-Host $out
           if ($out -notmatch 'no usable entry points') { throw 'helper did not load koffi + DLL as expected' }
+          exit 0   # the helper itself exits 1 here on purpose
 
       - uses: actions/upload-artifact@v4
         with:
