@@ -83,6 +83,9 @@
 	#login label { display: grid; gap: 5px; font-size: 13px; color: var(--muted); }
 	.error { color: var(--bad); font-size: 13px; min-height: 1em; }
 	.hint { font-size: 12.5px; color: var(--muted); }
+	.approve-box { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+	.spinner { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
 
 	/* main layout */
 	#app { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 20px; }
@@ -225,11 +228,17 @@
 				<div class="hint">Your password goes straight to Steam and is never saved. A login token is stored locally so you only sign in once.</div>
 			</form>
 			<form id="guard-form" class="hidden">
+				<div id="guard-approve" class="approve-box hidden">
+					<div class="spinner"></div>
+					<div><b>Check the Steam app on your phone</b>
+						<div class="hint">Tap <b>Approve</b> on the "Confirm sign in" request. If it doesn't pop up, open the Steam app and tap the shield icon (Steam Guard).</div></div>
+				</div>
 				<label><span id="guard-label">Steam Guard code</span>
 					<input name="code" autocomplete="one-time-code" maxlength="10" required style="text-transform:uppercase;letter-spacing:3px;font-size:18px">
 				</label>
 				<button class="primary" type="submit">Submit code</button>
-				<div class="hint">Or approve the sign-in in the Steam mobile app.</div>
+				<div class="error" id="guard-error"></div>
+				<button type="button" class="linkish" id="guard-cancel">Cancel and start over</button>
 			</form>
 			<div id="logging-in" class="hidden muted">Signing in…</div>
 		</div>
@@ -819,8 +828,14 @@ $('#login-form').onsubmit = async (e) => {
 };
 $('#guard-form').onsubmit = async (e) => {
 	e.preventDefault();
+	$('#guard-error').textContent = '';
 	try { await api('/api/guard', { code: e.target.code.value }); e.target.code.value = ''; }
-	catch (err) { $('#login-error').textContent = err.message; }
+	catch (err) { $('#guard-error').textContent = err.message; }
+	poll();
+};
+$('#guard-cancel').onclick = async () => {
+	await api('/api/login/cancel', {}).catch(() => {});
+	$('#guard-error').textContent = '';
 	poll();
 };
 $('#logout').onclick = async () => {
@@ -872,8 +887,13 @@ function render() {
 		$('#guard-form').classList.toggle('hidden', S.status !== 'needGuard');
 		$('#logging-in').classList.toggle('hidden', S.status !== 'loggingIn');
 		if (S.status === 'needGuard') {
-			$('#guard-label').textContent = S.guard.lastCodeWrong ? 'That code was wrong — try again'
-				: S.guard.domain ? `Code emailed to ${S.guard.domain}` : 'Code from the Steam mobile app';
+			const g = S.guard || {};
+			$('#guard-approve').classList.toggle('hidden', !g.approve);
+			$('#guard-label').textContent = g.lastCodeWrong ? 'That code was wrong. Try again.'
+				: g.emailCode ? `Or enter the code Steam emailed to ${g.emailDomain || g.domain || 'you'}`
+				: g.domain ? `Code emailed to ${g.domain}`
+				: g.approve ? "Or enter the 5-character code from the Steam app's Steam Guard tab"
+				: "Code from the Steam app (tap the shield icon, Steam Guard)";
 		}
 		if (S.error) $('#login-error').textContent = S.error;
 		return;

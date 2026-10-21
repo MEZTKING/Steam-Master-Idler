@@ -13,6 +13,7 @@ const { exec } = require('child_process');
 const SteamUser = require('steam-user');
 const QRCode = require('qrcode');
 const { startQrLogin } = require('./lib/qr-login');
+const { startPasswordLogin } = require('./lib/password-login');
 const { fetchCardDrops } = require('./lib/cards');
 const { createDebugLog } = require('./lib/debuglog');
 const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
@@ -120,6 +121,7 @@ const app = {
 };
 let guardCallback = null;
 let qrLogin = null;
+let pwLogin = null;   // username/password sign-in waiting for Steam Guard
 let webCookies = null;
 
 // what the diagnostics report shows (never cookie values, tokens or passwords)
@@ -721,16 +723,57 @@ const routes = {
 	}),
 
 	'POST /api/login': (body) => {
-		if (app.status === 'loggedIn' || app.status === 'loggingIn') throw new Error('Already logged in');
+		if (app.status === 'loggedIn') throw new Error('Already logged in');
 		if (!body.username || !body.password) throw new Error('Enter username and password');
+		qrLogin?.cancel();
+		qrLogin = null;
+		app.qr = null;
+		pwLogin?.cancel();
 		app.status = 'loggingIn';
 		app.error = null;
+		app.guard = null;
 		log(`Logging in as ${body.username}...`);
-		client.logOn({ accountName: body.username, password: body.password, ...LOGON_OPTS });
+		const attempt = startPasswordLogin({
+			accountName: body.username,
+			password: body.password,
+			onGuard: (g) => {
+				if (pwLogin !== attempt) return;
+				app.status = 'needGuard';
+				app.guard = { ...g, domain: g.emailDomain, lastCodeWrong: false };
+				log(g.approve
+					? 'Approve the sign-in in the Steam mobile app (a "Confirm sign in" request), or enter the code from its Steam Guard tab.'
+					: g.emailCode ? `Steam emailed a code to ${g.emailDomain || 'your email'}.` : 'Enter the code from the Steam mobile app (Steam Guard tab).');
+			},
+		});
+		pwLogin = attempt;
+		attempt.done.then(({ refreshToken, accountName }) => {
+			if (pwLogin !== attempt) return;
+			pwLogin = null;
+			app.guard = null;
+			app.status = 'loggingIn';
+			fs.writeFileSync(SESSION_FILE, refreshToken, { mode: 0o600 });
+			log(`Sign-in approved for ${accountName}.`);
+			client.logOn({ refreshToken, ...LOGON_OPTS });
+		}).catch((err) => {
+			if (pwLogin !== attempt) return;
+			pwLogin = null;
+			app.status = 'loggedOut';
+			app.guard = null;
+			app.error = err.message;
+			log(`Sign-in failed: ${err.message}`);
+		});
+	},
+
+	'POST /api/login/cancel': () => {
+		pwLogin?.cancel();
+		pwLogin = null;
+		if (app.status !== 'loggedIn') { app.status = 'loggedOut'; app.guard = null; }
 	},
 
 	'POST /api/login/qr': async () => {
 		if (app.status === 'loggedIn' || app.status === 'loggingIn') throw new Error('Already logged in');
+		pwLogin?.cancel();
+		pwLogin = null;
 		qrLogin?.cancel();
 		app.error = null;
 		app.qr = { svg: null, scanned: false };
@@ -774,12 +817,23 @@ const routes = {
 		await refreshCards();
 	},
 
-	'POST /api/guard': (body) => {
+	'POST /api/guard': async (body) => {
+		const code = String(body.code || '').trim();
+		if (pwLogin) {
+			try {
+				await pwLogin.submitCode(code);   // 'authenticated' follows and finishes the sign-in
+				app.status = 'loggingIn';
+			} catch (err) {
+				if (app.guard) app.guard.lastCodeWrong = true;
+				throw err;
+			}
+			return;
+		}
 		if (!guardCallback) throw new Error('No Steam Guard code requested');
 		app.status = 'loggingIn';
 		const cb = guardCallback;
 		guardCallback = null;
-		cb(String(body.code || '').trim());
+		cb(code);
 	},
 
 	'POST /api/logout': () => {
