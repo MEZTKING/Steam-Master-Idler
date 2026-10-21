@@ -64,14 +64,69 @@ jobs:
             dist/*.deb
           if-no-files-found: error
 
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Fetch the Node.js runtime and pack the idler
+        run: android/prepare.sh
+
+      - name: Build APKs
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --console=plain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Steam-Master-Idler-Android
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # Start the app on a real Android emulator and check the idler runs inside it
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke-test on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: bash android/ci-smoke-test.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-smoke-test
+          path: |
+            android/app/build/outputs/apk/release/android-smoke-screenshot.png
+            android/app/build/outputs/apk/release/android-smoke-logcat.txt
+          if-no-files-found: ignore
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: Steam-Master-Idler-*
           merge-multiple: true
 
       - uses: softprops/action-gh-release@v2

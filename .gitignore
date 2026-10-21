@@ -3,3 +3,11 @@ dist/
 config.json
 .session
 state.json
+# Android build (android/prepare.sh fetches/generates these)
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/app/libnode/
+android/app/src/main/assets/nodejs-project.zip
+android/local.properties

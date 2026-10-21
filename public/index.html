@@ -336,7 +336,7 @@
 <dialog id="settings">
 	<h2><span>Settings</span><button class="small" id="close-settings" title="Close">✕</button></h2>
 	<div class="dlg-body">
-		<fieldset>
+		<fieldset id="method-set">
 			<legend>Idling method</legend>
 			<label class="opt" id="method-app"><input type="radio" name="idleMethod" value="steamApp"><span>Through the Steam app on this PC (recommended)
 				<small>Shows you in-game in your own Steam app, and you can launch and play other games normally while it idles. The Steam app must be running and logged in. Windows only for now.</small>
@@ -351,7 +351,7 @@
 			<label class="opt"><input type="checkbox" data-k="darkTheme"><span>Dark theme</span></label>
 			<label class="opt"><input type="checkbox" data-k="showUsername"><span>Show Steam username of signed-in user</span></label>
 			<label class="opt desk"><input type="checkbox" data-k="preventSleep"><span>Prevent computer from sleeping while idling</span></label>
-			<label class="opt"><input type="checkbox" data-k="shutdownWhenDone"><span>Shut down computer when done
+			<label class="opt nomobile"><input type="checkbox" data-k="shutdownWhenDone"><span>Shut down computer when done
 				<small>When every game reaches its target or runs out of cards (or the session limit is hit). You get 60 seconds to cancel.</small></span></label>
 			<label class="opt"><input type="checkbox" data-k="playedOnly"><span>Idle only games I've played before
 				<small>Skips games with 0 hours. Steam only refunds games played under 2 hours, so this keeps new games refundable.</small></span></label>
@@ -527,6 +527,8 @@ function fillSettings() {
 	});
 	document.querySelectorAll('#settings input[type=radio]').forEach((el) => { el.checked = c[el.name] === el.value; });
 	document.querySelectorAll('#settings .desk').forEach((el) => el.classList.toggle('hidden', !S.desktop));
+	document.querySelectorAll('#settings .nomobile').forEach((el) => el.classList.toggle('hidden', !!S.mobile));
+	$('#method-set').classList.toggle('hidden', !!S.mobile);   // phones can only use the idler's own login
 	const appRadio = $('#method-app input');
 	appRadio.disabled = !S.steamApp?.supported;
 	$('#method-app-reason').textContent = !S.steamApp?.supported ? 'Not available on this system.' : S.steamApp.ok ? '' : S.steamApp.reason;
@@ -776,6 +778,7 @@ $('#pause').onclick = async () => { await api('/api/pause', {}); await poll(); }
 // ---------- login ----------
 
 let loginTab = 'qr';
+let mobileTabChosen = false;
 let qrAutoStarted = false;
 let qrStarting = false;
 async function startQr() {
@@ -853,6 +856,12 @@ function render() {
 
 	if (!loggedIn) {
 		const out = S.status === 'loggedOut';
+		// on a phone you can't scan a QR code shown on the same screen, so start on Password
+		if (S.mobile && !mobileTabChosen) {
+			mobileTabChosen = true;
+			loginTab = 'pw';
+			document.querySelectorAll('#login-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === 'pw'));
+		}
 		$('#login-tabs').classList.toggle('hidden', !out);
 		$('#qr-pane').classList.toggle('hidden', !out || loginTab !== 'qr');
 		$('#login-form').classList.toggle('hidden', !out || loginTab !== 'pw');

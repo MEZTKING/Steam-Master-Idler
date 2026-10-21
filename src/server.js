@@ -131,7 +131,13 @@ let timers = [];
 
 // ---------- steam client ----------
 
-const client = new SteamUser({ autoRelogin: true, renewRefreshTokens: true });
+const MOBILE = process.env.IDLER_MOBILE === '1';
+const client = new SteamUser({
+	autoRelogin: true,
+	renewRefreshTokens: true,
+	// Android has no home folder for steam-user's cache, so keep it in the app's storage
+	...(MOBILE ? { dataDirectory: path.join(DATA_DIR, 'steam-user') } : {}),
+});
 
 client.on('steamGuard', (domain, callback, lastCodeWrong) => {
 	app.status = 'needGuard';
@@ -154,7 +160,7 @@ client.on('loggedOn', async () => {
 		session.lastTick = Date.now();
 		applyGames(false, true);
 	}
-	refreshLibrary().catch((err) => log(`Couldn't load library: ${err.message}`));
+	refreshLibrary().then(resumeAfterRestart).catch((err) => log(`Couldn't load library: ${err.message}`));
 });
 
 client.on('accountInfo', (name) => { app.account = name; });
@@ -490,6 +496,22 @@ function cancelShutdown() {
 
 const hasPlayed = (appid) => (app.library.find((a) => a.appid === appid)?.minutes || 0) > 0;
 
+// Android may kill the app in the background; when it comes back, carry on with what was idling.
+// (A deliberate stop or quit clears this.)
+function resumeAfterRestart() {
+	if (!MOBILE || session || !state.resume?.games?.length) return;
+	log('Resuming the idling that was running before the app was closed by Android.');
+	try { startSession(state.resume.games, state.resume.kind); } catch (err) { log(`Couldn't resume: ${err.message}`); }
+}
+
+function saveResume() {
+	if (!MOBILE || !session) return;
+	const games = session.games.filter((g) => !g.done).map((g) => (g.cards ? { appid: g.appid, cards: true }
+		: g.targetMin != null ? { appid: g.appid, targetHours: g.targetMin / 60 } : { appid: g.appid }));
+	state.resume = { kind: session.kind, games };
+	writeJson(STATE_FILE, state);
+}
+
 // re-check card drops regularly while any card game is being idled
 function ensureCardChecks() {
 	if (session.cardTimer) return;
@@ -553,6 +575,7 @@ function startSession(games, kind = 'hours') {
 		phase: { name: 'all', idx: 0, until: Date.now() + FAST_ALL_MS },
 	};
 	events.emit('session', true);
+	saveResume();
 	if (session.blocked) log('Steam says a game is running in another Steam session (another PC, or the Steam app here). Idling starts as soon as it closes.');
 	log(`Started idling ${resolved.length} game(s).`);
 	for (const g of resolved) if (g.done) log(`${g.name} ${g.cards ? 'has no card drops left' : 'is already past its target'} - skipping.`);
@@ -574,6 +597,7 @@ function stopSession(reason, notify = false) {
 	client.gamesPlayed([]);
 	steamApp.stopAll();
 	helperErrors.clear();
+	if (state.resume) { delete state.resume; writeJson(STATE_FILE, state); }
 	log(reason, notify);
 	events.emit('session', false);
 }
@@ -590,6 +614,7 @@ function snapshot() {
 		account: app.account,
 		hasSavedSession: fs.existsSync(SESSION_FILE),
 		desktop: process.env.IDLER_DESKTOP === '1',
+		mobile: process.env.IDLER_MOBILE === '1',
 		version: VERSION,
 		steamApp: { supported: STEAM_APP_SUPPORTED, ...(STEAM_APP_SUPPORTED ? steamApp.available() : { ok: false }) },
 		shutdownAt: app.shutdownAt || null,
@@ -676,6 +701,7 @@ const routes = {
 		electron: process.versions.electron || null,
 		node: process.versions.node,
 		desktop: process.env.IDLER_DESKTOP === '1',
+		mobile: process.env.IDLER_MOBILE === '1',
 		status: app.status,
 		persona: config.persona,
 		playedOnly: config.playedOnly,
@@ -809,6 +835,12 @@ const routes = {
 		events.emit('openPath', debugLog.dir);
 	},
 
+	// Android notification "Quit": stop idling, log off Steam, end the app
+	'POST /api/quit': () => {
+		if (process.env.IDLER_MOBILE !== '1') throw new Error('Only on Android');
+		stop().then(() => process.exit(0));
+	},
+
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
 	'POST /api/stop': () => { stopSession('Stopped.'); },
@@ -826,6 +858,7 @@ const routes = {
 		if (game.cards) ensureCardChecks();
 		log(`Added ${game.name} to the running session.`);
 		applyGames(false, true);
+		saveResume();
 		// keep the hours queue in step, so the next Start includes it too
 		if (session.kind === 'hours' && !config.games.some((x) => x.appid === g.appid)) {
 			config.games.push(g);
@@ -842,6 +875,7 @@ const routes = {
 		log(`Removed ${game.name} from the running session.`);
 		if (!session.games.some((x) => !x.done)) return stopSession('Stopped (no games left).');
 		applyGames(false, true);
+		saveResume();
 	},
 
 	'POST /api/pause': () => {
