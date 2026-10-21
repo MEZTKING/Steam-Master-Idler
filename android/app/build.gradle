@@ -1,0 +1,92 @@
+plugins {
+    id 'com.android.application'
+}
+
+// version comes from the main package.json, so desktop and Android releases match
+def pkg = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def (major, minor, patch) = pkg.version.tokenize('.').collect { it.toInteger() }
+
+android {
+    namespace 'com.meztking.steammasteridler'
+    compileSdk 35
+    ndkVersion '27.2.12479018'
+
+    defaultConfig {
+        applicationId 'com.meztking.steammasteridler'
+        minSdk 24          // Node.js 18 needs Android 7.0+
+        targetSdk 35
+        versionCode major * 10000 + minor * 100 + patch
+        versionName pkg.version
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared'   // libnode needs the shared C++ runtime
+            }
+        }
+    }
+
+    // one APK per CPU type (smaller downloads) plus a universal one
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            universalApk true
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libnode/bin']   // ships libnode.so for each CPU type
+        }
+    }
+
+    // Updates only install over an APK signed with the same key. A private key can be supplied
+    // through ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD;
+    // otherwise the project's own key in android/release.keystore is used.
+    signingConfigs {
+        release {
+            storeFile System.getenv('ANDROID_KEYSTORE') ? file(System.getenv('ANDROID_KEYSTORE')) : rootProject.file('release.keystore')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: 'steammasteridler'
+            keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'steammasteridler'
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: 'steammasteridler'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    // store libnode compressed: much smaller download, unpacked once at install
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+// APK names: Steam-Master-Idler-<version>-<abi>.apk
+android.applicationVariants.configureEach { variant ->
+    variant.outputs.configureEach { output ->
+        def abi = output.getFilter(com.android.build.OutputFile.ABI) ?: 'universal'
+        outputFileName = "Steam-Master-Idler-${variant.versionName}-${abi}.apk"
+    }
+}

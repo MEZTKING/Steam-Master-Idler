@@ -61,6 +61,23 @@ The builds aren't code-signed, so the first launch shows a warning:
 - **Windows:** "Windows protected your PC" → *More info* → *Run anyway*.
 - **macOS:** right-click the app → *Open* → *Open*. Or run `xattr -cr "/Applications/Steam Master Idler.app"`.
 
+## Android
+
+The same app runs on Android 7.0 and newer. Grab the APK from the [Releases](https://github.com/MEZTKING/Steam-Master-Idler/releases) page (or a build's **Artifacts**):
+
+| Phone | File |
+|---|---|
+| Almost every phone from the last ~8 years | `Steam-Master-Idler-x.y.z-arm64-v8a.apk` |
+| Older 32-bit phones | `…-armeabi-v7a.apk` |
+| Not sure | `…-universal.apk` (bigger, works everywhere) |
+
+Install it (allow installing from your browser/files app when Android asks), open it and log in with your Steam **username and password**, then approve the sign-in in the Steam mobile app or type the Steam Guard code. Everything else works like the desktop app: hours idler, card idler, settings, debug report (opens the share sheet).
+
+- It keeps running in the background with a notification showing what's idling. Use **Quit** in that notification to stop it.
+- Allow it to run unrestricted when it asks about battery optimisation, or Android may pause it.
+- If Android closes it anyway, it picks up the idling where it left off when it restarts.
+- Phones can only idle with the app's own Steam login (there's no Steam app to idle through), so starting a game on your PC pauses the phone's idling until you close that game.
+
 ## Using it
 
 1. Open the app and scan the QR code with the Steam mobile app (Steam Guard → scan QR), then tap Approve.
@@ -78,6 +95,7 @@ Needs [Node.js](https://nodejs.org) 20 or newer.
 ```bash
 npm install
 npm start              # desktop app
+android/prepare.sh && (cd android && ./gradlew assembleRelease)   # Android APKs (needs the Android SDK + NDK)
 npm run web            # same UI in your browser at http://127.0.0.1:3000
 npm run cli -- --help  # command-line version
 npm run dist           # build an installer for your OS into dist/
@@ -107,6 +125,8 @@ git push --follow-tags
 ```
 
 Every push to `main` also builds the installers; download them from the run's **Artifacts** on the Actions tab.
+
+Android APKs are signed with the project's key in `android/release.keystore` (password `steammasteridler`), so every build installs as an update over the last one. To sign with your own private key instead, set `ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` when building (changing keys means uninstalling the old app once).
 
 ## Troubleshooting
 
