@@ -100,8 +100,12 @@ const FAST_ALL_MS = 5 * 60_000;   // fast mode: all card games together this lon
 const FAST_SOLO_MS = 15_000;      // ...then each one alone this long, then re-check drops
 
 const logLines = [];
+// HH:MM:SS, built by hand: Node on Android has no locale data, so toLocaleTimeString() there
+// prints things like "23:03:54 GMT+0100 (IST)"
+const clockTime = (d = new Date()) => [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+
 function log(msg, notify = false) {
-	const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+	const line = `[${clockTime()}] ${msg}`;
 	console.log(line);
 	debugLog.write('info', msg);
 	logLines.push(line);
