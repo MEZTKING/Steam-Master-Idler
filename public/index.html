@@ -643,15 +643,19 @@ $('#cancel-shutdown').onclick = async () => { await api('/api/cancel-shutdown', 
 
 // ---------- library ----------
 
+// games currently in the running session (not finished)
+const sessionIds = () => new Set((S.session?.games || []).filter((g) => !g.done).map((g) => g.appid));
+
 function addButton(appid, inQueue) {
-	if (inQueue.has(appid)) return '<button class="small" disabled>Added</button>';
+	if (S.session && sessionIds().has(appid)) return '<button class="small" disabled>Idling</button>';
+	if (!S.session && inQueue.has(appid)) return '<button class="small" disabled>Added</button>';
 	if (playedOnly() && unplayed(appid)) return '<button class="small" disabled title="You haven\'t played this yet. Turn off &quot;Only games I\'ve played before&quot; to add it.">Unplayed</button>';
 	return `<button class="small" data-add="${appid}">+ Add</button>`;
 }
 
 function renderLibrary(force) {
 	const term = $('#lib-search').value.trim().toLowerCase();
-	const key = `${S.library.length}|${S.library.reduce((a, g) => a + g.minutes, 0)}|${term}|${queue.map((q) => q.appid)}|${S.cards.checkedAt}`;
+	const key = `${S.library.length}|${S.library.reduce((a, g) => a + g.minutes, 0)}|${term}|${queue.map((q) => q.appid)}|${S.cards.checkedAt}|${!!S.session}|${[...sessionIds()]}`;
 	if (!force && key === libKey) return;
 	libKey = key;
 	$('#lib-count').textContent = S.library.length ? `(${S.library.length})` : '';
@@ -673,6 +677,13 @@ function renderLibrary(force) {
 $('#lib-search').addEventListener('input', () => renderLibrary());
 $('#lib-list').addEventListener('click', (e) => {
 	const id = e.target.dataset.add; if (!id) return;
+	if (S.session) {   // idling: add it to the running session, next to the other games
+		e.target.disabled = true;
+		api('/api/session/add', dropsOf(+id) && S.session.kind === 'cards' ? { appid: +id, cards: true } : { appid: +id })
+			.then(() => { if (!queue.some((q) => q.appid === +id)) queue.push({ appid: +id, mode: 'forever', hours: '' }); return poll(); })
+			.catch((err) => { e.target.disabled = false; alert(err.message); });
+		return;
+	}
 	queue.push({ appid: +id, mode: dropsOf(+id) ? 'cards' : 'forever', hours: '' });
 	renderQueue(); renderLibrary(true); save();
 });
@@ -737,7 +748,8 @@ function renderSession(s) {
 		const barCls = g.done ? 'done' : g.targetMin ? '' : `forever ${runningNow(g) ? '' : 'idle'}`;
 		return `<div class="srow">
 			${iconHtml(g.icon)}
-			<div class="top"><span class="name">${esc(g.name)}</span>${state}<span class="hours">${prog}</span></div>
+			<div class="top"><span class="name">${esc(g.name)}</span>${state}<span class="hours">${prog}</span>
+				<button class="small" data-remove="${g.appid}" title="Stop idling this game">✕</button></div>
 			<div class="bar ${barCls}"><div style="width:${g.targetMin ? pct : 100}%"></div></div>
 		</div>`;
 	}).join('');
@@ -752,6 +764,12 @@ $('#start').onclick = async () => {
 	try { await api('/api/start', settingsBody()); await poll(); }
 	catch (e) { $('#start-error').textContent = e.message; }
 };
+$('#session-games').addEventListener('click', async (e) => {
+	const id = e.target.dataset.remove; if (!id) return;
+	e.target.disabled = true;
+	try { await api('/api/session/remove', { appid: +id }); } catch (err) { alert(err.message); }
+	poll();
+});
 $('#stop').onclick = async () => { await api('/api/stop', {}); await poll(); };
 $('#pause').onclick = async () => { await api('/api/pause', {}); await poll(); };
 

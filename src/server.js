@@ -490,6 +490,42 @@ function cancelShutdown() {
 
 const hasPlayed = (appid) => (app.library.find((a) => a.appid === appid)?.minutes || 0) > 0;
 
+// re-check card drops regularly while any card game is being idled
+function ensureCardChecks() {
+	if (session.cardTimer) return;
+	session.cardTimer = setInterval(() => refreshCards().catch((err) => log(`Card check failed: ${err.message}`)), config.cardCheckMinutes * 60_000);
+	timers.push(session.cardTimer);
+	if (!app.cards.checkedAt) refreshCards().catch((err) => log(`Card check failed: ${err.message}`));
+}
+
+// queue/config entry ({appid, targetHours | addHours | cards}) -> a game being idled
+function resolveGame(g) {
+	const owned = app.library.find((a) => a.appid === g.appid);
+	const minutes = owned ? owned.minutes : 0;
+	let targetMin = null;
+	if (g.targetHours != null) {
+		targetMin = g.targetHours * 60;
+	} else if (g.addHours != null) {
+		const key = `${g.appid}:${g.addHours}`;
+		state.addTargets[key] ??= minutes + g.addHours * 60;
+		targetMin = state.addTargets[key];
+	}
+	const cards = !!g.cards;
+	const dropsLeft = cards && app.cards.checkedAt ? (app.cards.drops[g.appid] || 0) : null;
+	return {
+		appid: g.appid,
+		name: owned?.name || `App ${g.appid}`,
+		icon: owned?.icon || null,
+		apiMin: minutes,
+		baseMin: minutes,
+		localMs: 0,
+		targetMin: cards ? null : targetMin,
+		cards,
+		dropsLeft,
+		done: cards ? dropsLeft === 0 : targetMin != null && minutes >= targetMin,
+	};
+}
+
 function startSession(games, kind = 'hours') {
 	cancelShutdown();
 	if (config.playedOnly) {
@@ -499,32 +535,7 @@ function startSession(games, kind = 'hours') {
 		for (const g of skipped) log(`Skipping ${app.library.find((a) => a.appid === g.appid)?.name || `App ${g.appid}`} - never played.`);
 	}
 	if (session) stopSession('Restarting with new settings.');
-	const resolved = games.map((g) => {
-		const owned = app.library.find((a) => a.appid === g.appid);
-		const minutes = owned ? owned.minutes : 0;
-		let targetMin = null;
-		if (g.targetHours != null) {
-			targetMin = g.targetHours * 60;
-		} else if (g.addHours != null) {
-			const key = `${g.appid}:${g.addHours}`;
-			state.addTargets[key] ??= minutes + g.addHours * 60;
-			targetMin = state.addTargets[key];
-		}
-		const cards = !!g.cards;
-		const dropsLeft = cards && app.cards.checkedAt ? (app.cards.drops[g.appid] || 0) : null;
-		return {
-			appid: g.appid,
-			name: owned?.name || `App ${g.appid}`,
-			icon: owned?.icon || null,
-			apiMin: minutes,
-			baseMin: minutes,
-			localMs: 0,
-			targetMin: cards ? null : targetMin,
-			cards,
-			dropsLeft,
-			done: cards ? dropsLeft === 0 : targetMin != null && minutes >= targetMin,
-		};
-	});
+	const resolved = games.map(resolveGame);
 	writeJson(STATE_FILE, state);
 
 	session = {
@@ -550,10 +561,7 @@ function startSession(games, kind = 'hours') {
 		setInterval(tick, 5_000),
 		setInterval(() => refreshLibrary().catch(() => {}), config.resyncMinutes * 60_000),
 	];
-	if (resolved.some((g) => g.cards)) {
-		timers.push(setInterval(() => refreshCards().catch((err) => log(`Card check failed: ${err.message}`)), config.cardCheckMinutes * 60_000));
-		if (!app.cards.checkedAt) refreshCards().catch((err) => log(`Card check failed: ${err.message}`));
-	}
+	if (resolved.some((g) => g.cards)) ensureCardChecks();
 	tick();
 }
 
@@ -804,6 +812,37 @@ const routes = {
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
 	'POST /api/stop': () => { stopSession('Stopped.'); },
+
+	// add a game to the running session (it starts right away if there's a free slot)
+	'POST /api/session/add': (body) => {
+		if (!session) throw new Error('Not idling');
+		const [g] = cleanGames([body]);
+		if (session.games.some((x) => x.appid === g.appid && !x.done)) throw new Error('Already idling that game');
+		if (config.playedOnly && !hasPlayed(g.appid)) throw new Error("You haven't played that game yet (Settings → Idle only games I've played before).");
+		session.games = session.games.filter((x) => x.appid !== g.appid);   // re-adding a finished game restarts it
+		const game = resolveGame(g);
+		writeJson(STATE_FILE, state);
+		session.games.push(game);
+		if (game.cards) ensureCardChecks();
+		log(`Added ${game.name} to the running session.`);
+		applyGames(false, true);
+		// keep the hours queue in step, so the next Start includes it too
+		if (session.kind === 'hours' && !config.games.some((x) => x.appid === g.appid)) {
+			config.games.push(g);
+			writeJson(CONFIG_FILE, config);
+		}
+	},
+
+	'POST /api/session/remove': (body) => {
+		if (!session) throw new Error('Not idling');
+		const appid = parseInt(body.appid, 10);
+		const game = session.games.find((x) => x.appid === appid);
+		if (!game) throw new Error('Not in this session');
+		session.games = session.games.filter((x) => x !== game);
+		log(`Removed ${game.name} from the running session.`);
+		if (!session.games.some((x) => !x.done)) return stopSession('Stopped (no games left).');
+		applyGames(false, true);
+	},
 
 	'POST /api/pause': () => {
 		if (!session) throw new Error('Not idling');
