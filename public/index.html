@@ -246,6 +246,13 @@
 	.warn-text { color: var(--warn) !important; }
 	.tag.bad { color: var(--warn); }
 	.steam-check.bad { color: var(--warn); }
+	/* all-time stats */
+	.h2-note { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
+	.lib-total { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+	.lib-total b { color: var(--text); font-weight: 600; }
+	#at-games .row .hours { white-space: nowrap; }
+	.stats-actions { display: flex; align-items: center; padding: 10px 16px; }
+	.stats-actions .spacer { flex: 1; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -393,6 +400,23 @@
 			<div class="panel">
 				<h2>Activity<span class="spacer"></span><span class="swipe-hint">swipe ↔</span></h2>
 				<div id="log"></div>
+			</div>
+
+			<div class="panel" id="stats-panel">
+				<h2>All-time stats<span class="spacer"></span><span class="h2-note" id="stats-since"></span></h2>
+				<div class="stats">
+					<div class="stat"><div class="v" id="at-idle">0</div><div class="k">Time idled</div></div>
+					<div class="stat"><div class="v" id="at-game">0</div><div class="k">Game hours added</div></div>
+					<div class="stat"><div class="v" id="at-cards">0</div><div class="k">Card drops collected</div></div>
+					<div class="stat"><div class="v" id="at-sessions">0</div><div class="k">Sessions</div></div>
+				</div>
+				<div class="lib-total" id="at-library"></div>
+				<div id="at-games"></div>
+				<div class="stats-actions">
+					<button class="linkish" id="at-more">Show all</button>
+					<span class="spacer"></span>
+					<button class="linkish" id="at-reset">Reset stats</button>
+				</div>
 			</div>
 		</div>
 	</section>
@@ -851,6 +875,53 @@ $('#run-add-cards').onclick = async (e) => {
 	e.target.disabled = false;
 	poll();
 };
+// ---------- all-time stats ----------
+
+// 45m · 12.3h · 1,234.5h
+const duration = (ms) => ms < 3600000 ? `${Math.floor(ms / 60000)}m`
+	: `${(ms / 3600000).toLocaleString(undefined, { maximumFractionDigits: 1 })}h`;
+let statsShowAll = false;
+let statsKey = '';
+function renderStats() {
+	const st = S.stats;
+	const games = statsShowAll ? st.games : st.games.slice(0, 5);
+	const libH = (st.library.minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 });
+	const html = {
+		idle: duration(st.idleMs),
+		game: duration(st.gameMs),
+		cards: st.cards.toLocaleString(),
+		sessions: st.sessions.toLocaleString(),
+		since: `since ${new Date(st.since).toLocaleDateString()}`,
+		library: st.library.games
+			? `Your whole Steam library: <b>${libH} hours</b> played across <b>${st.library.played}</b> of ${st.library.games} games.`
+			: 'Loading your library…',
+		games: !st.games.length ? '<div class="empty">Nothing idled yet. Totals appear here as you idle.</div>'
+			: games.map((g) => `<div class="row">
+				${iconHtml(libGame(g.appid)?.icon)}
+				<div class="name" title="${esc(g.name)}">${esc(g.name)}</div>
+				<span class="hours">+${duration(g.ms)}${g.cards ? ` · ${CARD} ${g.cards}` : ''}</span>
+			</div>`).join(''),
+	};
+	const key = JSON.stringify(html) + statsShowAll;
+	if (key === statsKey) return;
+	statsKey = key;
+	$('#at-idle').textContent = html.idle;
+	$('#at-game').textContent = html.game;
+	$('#at-cards').textContent = html.cards;
+	$('#at-sessions').textContent = html.sessions;
+	$('#stats-since').textContent = html.since;
+	$('#at-library').innerHTML = html.library;
+	$('#at-games').innerHTML = html.games;
+	$('#at-more').classList.toggle('hidden', st.games.length <= 5);
+	$('#at-more').textContent = statsShowAll ? 'Show top 5' : `Show all ${st.games.length}`;
+}
+$('#at-more').onclick = () => { statsShowAll = !statsShowAll; renderStats(); };
+$('#at-reset').onclick = async () => {
+	if (!confirm('Reset all-time stats to zero? (Your Steam playtime is not affected.)')) return;
+	await api('/api/stats/reset', {});
+	poll();
+};
+
 $('#stop').onclick = async () => { await api('/api/stop', {}); await poll(); };
 $('#pause').onclick = async () => { await api('/api/pause', {}); await poll(); };
 
@@ -988,6 +1059,7 @@ function render() {
 	const hadLib = libKey.split('|')[0] !== '0' && libKey !== '';
 	renderLibrary();
 	renderCardsInfo();
+	renderStats();
 	if (!s && S.cards.checkedAt !== lastCardsAt) { lastCardsAt = S.cards.checkedAt; renderQueue(); }
 	if (!hadLib && S.library.length && !s) renderQueue(); // names/icons arrive with the library
 

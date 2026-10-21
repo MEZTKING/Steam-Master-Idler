@@ -86,6 +86,18 @@ if (!state.logonID) {
 	state.logonID = 1 + Math.floor(Math.random() * 0xfffffffe);
 	writeJson(STATE_FILE, state);
 }
+// All-time totals of what this install has idled (kept in state.json, survives restarts and updates)
+state.stats ??= { since: Date.now(), idleMs: 0, gameMs: 0, sessions: 0, cards: 0, games: {} };
+let statsSavedAt = Date.now();
+function statsGame(g) {
+	return (state.stats.games[g.appid] ??= { name: g.name, ms: 0, cards: 0 });
+}
+function saveStats(force = false) {
+	if (!force && Date.now() - statsSavedAt < 60_000) return;   // at most once a minute while idling
+	statsSavedAt = Date.now();
+	writeJson(STATE_FILE, state);
+}
+
 const LOGON_OPTS = { logonID: state.logonID, machineName: 'Steam Master Idler' };
 const applyPersona = () => { if (PERSONA[config.persona] != null) client.setPersona(PERSONA[config.persona]); };
 
@@ -268,7 +280,12 @@ function updateSessionDrops() {
 	for (const g of session.games) {
 		if (!g.cards || g.done) continue;
 		const left = app.cards.drops[g.appid] || 0;
-		if (g.dropsLeft != null && left < g.dropsLeft) log(`🃏 ${g.name}: got ${g.dropsLeft - left} card(s), ${left} left.`);
+		if (g.dropsLeft != null && left < g.dropsLeft) {
+			log(`🃏 ${g.name}: got ${g.dropsLeft - left} card(s), ${left} left.`);
+			state.stats.cards += g.dropsLeft - left;
+			statsGame(g).cards += g.dropsLeft - left;
+			saveStats(true);
+		}
 		g.dropsLeft = left;
 		if (left === 0) {
 			g.done = true;
@@ -453,11 +470,15 @@ function tick() {
 	session.lastTick = now;
 	if (isPaused()) return;
 
-	if (session.active.some(isRunning)) session.idledMs += dt;
+	if (session.active.some(isRunning)) { session.idledMs += dt; state.stats.idleMs += dt; }
 	let changed = false;
 	for (const g of session.active) {
 		if (!isRunning(g)) continue;
 		g.localMs += dt;
+		state.stats.gameMs += dt;
+		const st = statsGame(g);
+		st.ms += dt;
+		st.name = g.name;
 		if (!g.cards && g.targetMin != null && !g.done && progress(g) >= g.targetMin) {
 			g.done = true;
 			changed = true;
@@ -467,6 +488,7 @@ function tick() {
 	if (changed) applyGames();
 	else if (config.cardMode === 'simultaneous2h' || config.cardMode === 'individualFirst') applyGames();  // games cross 2h
 	advanceFastMode(now);
+	saveStats();
 
 	if (session.games.every((g) => g.done)) return finishSession(session.kind === 'cards' ? 'All card drops collected.' : session.kind === 'mixed' ? 'All targets reached and card drops collected.' : 'All targets reached.');
 	if (session.stopAfterHours && session.idledMs >= session.stopAfterHours * 3_600_000) {
@@ -601,6 +623,8 @@ function startSession(games, kind = 'hours') {
 		phase: { name: 'all', idx: 0, until: Date.now() + FAST_ALL_MS },
 	};
 	events.emit('session', true);
+	state.stats.sessions++;
+	saveStats(true);
 	saveResume();
 	if (session.blocked) log('Steam says a game is running in another Steam session (another PC, or the Steam app here). Idling starts as soon as it closes.');
 	log(`Started idling ${resolved.length} game(s).`);
@@ -623,12 +647,28 @@ function stopSession(reason, notify = false) {
 	client.gamesPlayed([]);
 	steamApp.stopAll();
 	helperErrors.clear();
-	if (state.resume) { delete state.resume; writeJson(STATE_FILE, state); }
+	delete state.resume;
+	saveStats(true);   // also writes the cleared resume
 	log(reason, notify);
 	events.emit('session', false);
 }
 
 // ---------- http api ----------
+
+function statsSnapshot() {
+	const st = state.stats;
+	const games = Object.entries(st.games)
+		.map(([appid, g]) => ({ appid: +appid, name: app.library.find((a) => a.appid === +appid)?.name || g.name, ms: g.ms, cards: g.cards }))
+		.sort((a, b) => b.ms - a.ms);
+	return {
+		since: st.since, idleMs: st.idleMs, gameMs: st.gameMs, sessions: st.sessions, cards: st.cards, games,
+		library: {   // the whole Steam library, from Steam's own playtime
+			games: app.library.length,
+			played: app.library.filter((g) => g.minutes > 0).length,
+			minutes: app.library.reduce((sum, g) => sum + g.minutes, 0),
+		},
+	};
+}
 
 function snapshot() {
 	// time idled since the last tick, so clocks in the page move every second, not every 5
@@ -648,6 +688,7 @@ function snapshot() {
 		library: app.library,
 		qr: app.qr,
 		cards: { ...app.cards, ready: !!webCookies },
+		stats: statsSnapshot(),
 		session: session && {
 			paused: session.paused,
 			blocked: session.blocked,
@@ -918,6 +959,12 @@ const routes = {
 	'POST /api/quit': () => {
 		if (process.env.IDLER_MOBILE !== '1') throw new Error('Only on Android');
 		stop().then(() => process.exit(0));
+	},
+
+	'POST /api/stats/reset': () => {
+		state.stats = { since: Date.now(), idleMs: 0, gameMs: 0, sessions: session ? 1 : 0, cards: 0, games: {} };
+		saveStats(true);
+		log('All-time stats reset.');
 	},
 
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },

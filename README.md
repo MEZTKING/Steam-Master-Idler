@@ -11,6 +11,7 @@
 - **Hours idler:** idle a game **forever**, **until its total reaches X hours**, **for another X hours**, or **until its card drops run out**.
 - **Card idler:** one click farms every game that still has trading-card drops, using the idling behavior and order you choose. Each game stops when its drops are gone. It also runs **alongside** hours idling: while idling, tap **+ Card games** (or start the card idler) and the card games join the running session.
 - **QR-code login:** scan with the Steam mobile app; no password typed. Username, password and Steam Guard also work. You only log in once.
+- **All-time stats:** total time idled, game-hours added, card drops collected and sessions, plus your most-idled games and your whole library's playtime. Kept across restarts and updates.
 - **Up to 32 games at once.** Extra games wait in a queue and start as others finish.
 - **Session limit:** stop everything after X hours.
 - **Runs in the tray:** closing the window keeps it idling. Desktop notifications tell you when targets are reached.
