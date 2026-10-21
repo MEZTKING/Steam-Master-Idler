@@ -1,7 +1,7 @@
 {
   "name": "steam-master-idler",
   "productName": "Steam Master Idler",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Desktop app to idle Steam games until a playtime target is reached, and farm trading-card drops.",
   "main": "src/main.js",
   "author": "MEZTKING",
@@ -23,7 +23,9 @@
       "src/**/*",
       "public/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/koffi/{src,vendor,doc}/**",
+      "!node_modules/koffi/build/koffi/{freebsd_*,openbsd_*,musl_*,linux_ia32,linux_armhf,linux_loong64,linux_riscv64d}/**"
     ],
     "directories": {
       "output": "dist"
@@ -66,9 +68,14 @@
       "icon": "assets/icon.png",
       "artifactName": "Steam-Master-Idler-${version}-${arch}.${ext}",
       "maintainer": "MEZTKING <MEZTKING@users.noreply.github.com>"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/koffi/**",
+      "src/steamapp/**"
+    ]
   },
   "dependencies": {
+    "koffi": "^2.16.3",
     "qrcode": "^1.5.4",
     "steam-session": "^1.9.4",
     "steam-user": "^5.3.0"

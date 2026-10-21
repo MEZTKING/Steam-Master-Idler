@@ -14,12 +14,18 @@
 - **Up to 32 games at once.** Extra games wait in a queue and start as others finish.
 - **Session limit:** stop everything after X hours.
 - **Runs in the tray:** closing the window keeps it idling. Desktop notifications tell you when targets are reached.
-- **Pauses automatically** if you start playing on another device, and resumes when you stop.
+- **Play while idling:** on Windows it idles through your Steam app, so you can keep playing other games.
 - Optional "start when I log in", custom status text and online/invisible status.
 
 ## Settings
 
 Click **⚙ Settings** in the top bar.
+
+**Idling method**
+- **Through the Steam app on this PC** (Windows, the default there): the games show as running in your own Steam app, the way Idle Master does it, so **you can launch and play other games normally while idling**. The Steam app must be running and logged in to the same account. It uses `steamclient64.dll` from your own Steam install; no Valve files are bundled.
+- **With the idler's own Steam login**: works without the Steam app (any OS, or a PC without Steam). Steam only lets one session play at a time, so starting a game in Steam disconnects the idler until you close that game, then it resumes.
+
+The idler never changes your online status unless you pick one under **Show me as** (default: keep my Steam app's status).
 
 | General | |
 |---|---|
@@ -101,6 +107,10 @@ git push --follow-tags
 ```
 
 Every push to `main` also builds the installers; download them from the run's **Artifacts** on the Actions tab.
+
+## Troubleshooting
+
+Settings → **Save debug report** writes one `.txt` file (to Downloads in the desktop app) with what the app and Steam exchanged. Passwords, tokens and cookie values are removed. Attach it to a bug report. The full log is in `logs/debug.log` in the data folder (tray → *Open logs folder*).
 
 ## How it works
 

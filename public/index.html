@@ -185,6 +185,8 @@
 	.ic { width: 1.05em; height: 1.05em; vertical-align: -0.17em; }
 	.steam-check { padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
 	.steam-check.ok { color: var(--good); }
+	.warn-text { color: var(--warn) !important; }
+	.tag.bad { color: var(--warn); }
 	.steam-check.bad { color: var(--warn); }
 	.hidden { display: none !important; }
 </style>
@@ -287,6 +289,7 @@
 							<input id="set-stop" type="number" min="0" step="0.5" placeholder="No limit"></label>
 						<label>Show me as
 							<select id="set-persona">
+								<option value="keep">Keep my Steam app's status</option>
 								<option value="online">Online</option>
 								<option value="away">Away</option>
 								<option value="busy">Busy</option>
@@ -333,6 +336,14 @@
 <dialog id="settings">
 	<h2><span>Settings</span><button class="small" id="close-settings" title="Close">✕</button></h2>
 	<div class="dlg-body">
+		<fieldset>
+			<legend>Idling method</legend>
+			<label class="opt" id="method-app"><input type="radio" name="idleMethod" value="steamApp"><span>Through the Steam app on this PC (recommended)
+				<small>Shows you in-game in your own Steam app, and you can launch and play other games normally while it idles. The Steam app must be running and logged in. Windows only for now.</small>
+				<small class="warn-text" id="method-app-reason"></small></span></label>
+			<label class="opt"><input type="radio" name="idleMethod" value="servers"><span>With the idler's own Steam login
+				<small>Works without the Steam app. But Steam lets only one session play at a time, so starting a game in Steam disconnects the idler until you close that game.</small></span></label>
+		</fieldset>
 		<fieldset>
 			<legend>General</legend>
 			<label class="opt desk"><input type="checkbox" data-k="minimizeToTray"><span>Minimize to system tray
@@ -516,6 +527,9 @@ function fillSettings() {
 	});
 	document.querySelectorAll('#settings input[type=radio]').forEach((el) => { el.checked = c[el.name] === el.value; });
 	document.querySelectorAll('#settings .desk').forEach((el) => el.classList.toggle('hidden', !S.desktop));
+	const appRadio = $('#method-app input');
+	appRadio.disabled = !S.steamApp?.supported;
+	$('#method-app-reason').textContent = !S.steamApp?.supported ? 'Not available on this system.' : S.steamApp.ok ? '' : S.steamApp.reason;
 }
 async function setPref(patch) {
 	Object.assign(S.config, patch);
@@ -687,18 +701,23 @@ $('#lib-refresh').onclick = async (e) => {
 // ---------- session ----------
 
 function renderSession(s) {
-	const paused = s.paused || s.blocked || s.disconnected;
+	const paused = s.effectivePaused;
+	const viaApp = s.method === 'steamApp';
+	const failed = s.games.filter((g) => g.active && g.helper?.state === 'failed');
+	const runningNow = (g) => g.active && !paused && (!viaApp || g.helper?.state === 'running');
 	$('#pause').textContent = s.paused ? '▶ Resume' : '❚❚ Pause';
 	$('#st-time').textContent = clockS(s.idledMs);
 	const chk = s.steamCheck?.state;
 	const steamEl = $('#st-steam');
-	steamEl.className = 'steam-check' + (chk === 'ok' ? ' ok' : chk === 'notInGame' ? ' bad' : '');
-	steamEl.textContent = paused ? (s.blocked ? 'Steam status: paused, a game is running in another Steam session (another PC or the Steam app). Idling resumes when it closes.' : 'Steam status: paused')
+	steamEl.className = 'steam-check' + (chk === 'ok' && !failed.length ? ' ok' : chk === 'notInGame' || failed.length ? ' bad' : '');
+	steamEl.textContent = paused ? (s.paused ? 'Steam status: paused' : s.blocked ? 'Steam status: paused, a game is running in another Steam session (another PC or the Steam app). Idling resumes when it closes, or switch Settings → Idling method to "Through the Steam app".' : 'Steam status: reconnecting to Steam…')
+		: failed.length ? `Steam status: ⚠ ${failed[0].helper.error} Retrying every minute.`
+		: viaApp && s.games.some((g) => g.active && g.helper?.state === 'starting') ? 'Steam status: starting games in the Steam app…'
 		: chk === 'ok' ? `Steam status: ✔ In-game (${s.steamCheck.game}). Steam is counting playtime.`
-		: chk === 'notInGame' ? "Steam status: ⚠ Steam doesn't show you in-game. Is a game running in the Steam app?"
+		: chk === 'notInGame' ? (viaApp ? "Steam status: ⚠ Steam doesn't show you in-game yet. Is the Steam app running and logged in to the same account?" : "Steam status: ⚠ Steam doesn't show you in-game. Is a game running in the Steam app? Try Settings → Idling method → Through the Steam app.")
 		: chk === 'hidden' ? "Steam status: your status is Invisible/Offline, so Steam hides what you're playing (playtime still counts)."
 		: 'Steam status: checking with Steam…';
-	$('#st-active').textContent = paused ? '0' : s.games.filter((g) => g.active).length;
+	$('#st-active').textContent = s.games.filter(runningNow).length;
 	$('#st-done').textContent = `${s.games.filter((g) => g.done).length}/${s.games.filter((g) => g.targetMin != null || g.cards).length}`;
 	$('#st-left').textContent = s.stopAfterHours ? clock(Math.max(0, s.stopAfterHours * 3600000 - s.idledMs)) + ' left' : 'none';
 	$('#run-title').textContent = s.kind === 'cards' ? `Card idling · ${MODE_NAMES[S.config.cardMode]}` : 'Now idling';
@@ -707,13 +726,15 @@ function renderSession(s) {
 	$('#session-games').innerHTML = s.games.map((g) => {
 		const pct = g.targetMin ? Math.min(100, (g.minutes / g.targetMin) * 100) : 100;
 		const state = g.done ? '<span class="tag done">✔ done</span>'
+			: g.active && g.helper?.state === 'failed' ? `<span class="tag bad" title="${esc(g.helper.error || '')}">⚠ not running</span>`
+			: g.active && g.helper?.state === 'starting' ? '<span class="tag">starting…</span>'
 			: g.active && !paused ? '<span class="tag on">● idling</span>'
 			: g.active ? '<span class="tag">paused</span>' : '<span class="tag">queued</span>';
 		const h2 = (m) => (m / 60).toFixed(2) + 'h';
 		const thisRun = g.sessionMs ? ` · +${clockS(g.sessionMs)}` : '';
 		const prog = g.cards ? `${h2(g.minutes)}${thisRun} · ${g.dropsLeft == null ? 'checking cards…' : `${CARD} ${g.dropsLeft} drop(s) left`}`
 			: g.targetMin ? `${h2(g.minutes)} / ${hours(g.targetMin)} · ${pct.toFixed(1)}%${thisRun}` : `${h2(g.minutes)} · no limit${thisRun}`;
-		const barCls = g.done ? 'done' : g.targetMin ? '' : `forever ${g.active && !paused ? '' : 'idle'}`;
+		const barCls = g.done ? 'done' : g.targetMin ? '' : `forever ${runningNow(g) ? '' : 'idle'}`;
 		return `<div class="srow">
 			${iconHtml(g.icon)}
 			<div class="top"><span class="name">${esc(g.name)}</span>${state}<span class="hours">${prog}</span></div>
@@ -804,10 +825,12 @@ function render() {
 
 	const pill = $('#status-pill');
 	const s = S.session;
-	const paused = s && (s.paused || s.blocked || s.disconnected);
+	const paused = s && s.effectivePaused;
 	pill.className = 'pill' + (s ? (paused ? ' paused' : ' on') : '');
 	pill.textContent = !loggedIn ? (S.status === 'loggedOut' ? 'offline' : 'signing in')
-		: !s ? 'ready' : s.paused ? 'paused' : s.blocked ? 'paused · playing elsewhere' : s.disconnected ? 'reconnecting' : 'idling';
+		: !s ? 'ready' : s.paused ? 'paused'
+		: s.method === 'steamApp' && s.games.some((g) => g.active) && s.games.filter((g) => g.active).every((g) => g.helper?.state === 'failed') ? 'waiting for Steam'
+		: !paused ? 'idling' : s.blocked ? 'paused · playing elsewhere' : 'reconnecting';
 	document.title = s && !paused ? '▶ Steam Master Idler' : 'Steam Master Idler';
 
 	if (!loggedIn) {
