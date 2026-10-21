@@ -1,7 +1,7 @@
 {
   "name": "steam-master-idler",
   "productName": "Steam Master Idler",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Desktop app to idle Steam games until a playtime target is reached, and farm trading-card drops.",
   "main": "src/main.js",
   "author": "MEZTKING",
