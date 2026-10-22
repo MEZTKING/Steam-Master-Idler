@@ -55,6 +55,9 @@ const config = Object.assign({
 	cardCheckMinutes: 10,
 	stopAfterHours: null,
 	playedOnly: false,     // skip games with no playtime (keeps them refundable)
+	playedMinutes: 1,      // ...where "played" means at least this many minutes
+	rememberLogin: true,   // keep the sign-in token on disk, so you only sign in once
+	autoTakeover: false,   // start idling by itself when another device stops playing
 	idleMethod: process.platform === 'win32' ? 'steamApp' : 'servers', // servers: our own Steam login plays the games | steamApp: through the Steam app on this PC
 	cardMode: 'fast',      // fast | all | individual | simultaneous2h | individualFirst
 	cardOrder: 'default',  // default (A-Z) | mostDrops | leastDrops
@@ -164,9 +167,26 @@ client.on('steamGuard', (domain, callback, lastCodeWrong) => {
 	log(lastCodeWrong ? 'Steam Guard code was wrong, try again.' : `Steam Guard code needed${domain ? ` (sent to ${domain})` : ' (mobile app)'} - you can also approve the login in the Steam app.`);
 });
 
-client.on('refreshToken', (token) => fs.writeFileSync(SESSION_FILE, token, { mode: 0o600 }));
+// The sign-in token. With "Keep me signed in" it's saved to disk (survives restarts); without it it
+// only lives in memory, so reconnects still work while the app is running.
+let memToken = null;
+function saveToken(token) {
+	memToken = token;
+	if (config.rememberLogin) fs.writeFileSync(SESSION_FILE, token, { mode: 0o600 });
+}
+function savedToken() {
+	try { return fs.readFileSync(SESSION_FILE, 'utf8').trim() || memToken; } catch { return memToken; }
+}
+function forgetToken() {
+	memToken = null;
+	if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+}
+
+client.on('refreshToken', (token) => saveToken(token));
 
 client.on('loggedOn', async () => {
+	clearTimeout(reconnectTimer);
+	reconnectAttempt = 0;
 	app.status = 'loggedIn';
 	app.guard = null;
 	app.error = null;
@@ -207,24 +227,31 @@ client.on('error', (err) => {
 	if (err.eresult === SteamUser.EResult.LoggedInElsewhere) {
 		log('A game was started in Steam (here or on another PC), so Steam disconnected the idler. Steam only lets one session play at a time. Reconnecting every 5 minutes; idling resumes once that game is closed.');
 		if (session) session.disconnected = true;
-		setTimeout(loginWithSavedSession, 5 * 60_000);
+		app.status = 'reconnecting';
+		clearTimeout(reconnectTimer);
+		reconnectTimer = setTimeout(loginWithSavedSession, 5 * 60_000);
 		return;
 	}
-	if (err.eresult === SteamUser.EResult.InvalidPassword || err.eresult === SteamUser.EResult.AccessDenied) {
-		if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+	// Steam rejected the saved sign-in itself: only then is a new sign-in needed
+	const E = SteamUser.EResult;
+	const rejected = [E.InvalidPassword, E.AccessDenied, E.Expired, E.Revoked, E.InvalidSignature, E.AccountDisabled].includes(err.eresult);
+	if (!rejected && savedToken()) {
+		if (session) session.disconnected = true;   // pause; idling resumes after reconnecting
+		scheduleReconnect(`Disconnected from Steam (${err.message}).`);
+		return;
 	}
+	if (rejected) forgetToken();
 	stopSession('Logged out.');
 	app.status = 'loggedOut';
 	app.guard = null;
-	app.error = err.eresult === SteamUser.EResult.LogonSessionReplaced
-		? 'Steam replaced this login with another one from this network. Log in again.'
-		: err.message;
+	app.error = rejected ? 'Your saved sign-in is no longer valid. Sign in again.' : err.message;
 	log(`Login error: ${err.message}`);
 });
 
 client.on('playingState', (blocked, playingApp) => {
 	app.playing = { blocked, appid: playingApp };
 	debugLog.write('diag', `playingState blocked=${blocked} playingApp=${playingApp}`);
+	checkTakeover(blocked);
 	if (!session || viaApp()) return;   // through the Steam app, your own games never conflict
 	if (blocked && !session.blocked) {
 		session.blocked = true;
@@ -238,12 +265,69 @@ client.on('playingState', (blocked, playingApp) => {
 	}
 });
 
+// "Take over when my other device stops": Steam tells every session when another one starts or
+// stops playing. When another device stops (e.g. you quit the idler on your PC), wait a minute and,
+// if nothing started again, start idling here: the hours queue, or the card idler if the queue is empty.
+let takeoverTimer = null;
+let lastBlocked = null;
+function checkTakeover(blocked) {
+	const wasBlocked = lastBlocked;
+	lastBlocked = blocked;
+	clearTimeout(takeoverTimer);
+	if (blocked || wasBlocked !== true) return;   // only right after another device stopped playing
+	if (!config.autoTakeover || session || viaApp() || app.status !== 'loggedIn') return;
+	log('Your other device stopped playing. Taking over idling in 1 minute unless it starts again.');
+	takeoverTimer = setTimeout(takeOver, 60_000);
+}
+function takeOver() {
+	if (!config.autoTakeover || session || app.playing?.blocked || app.status !== 'loggedIn') return;
+	try {
+		if (config.games.length) {
+			startSession(config.games);
+		} else {
+			const cards = Object.keys(app.cards.drops).map(Number);
+			if (!cards.length) return log('Nothing to take over: the queue is empty and no games have card drops left.');
+			startSession(cards.map((appid) => ({ appid, cards: true })), 'cards');
+		}
+		log('Took over idling from your other device.');
+	} catch (err) {
+		log(`Couldn't take over idling: ${err.message}`);
+	}
+}
+
+// "Keep me signed in" checkbox on the login form
+function applyRemember(body) {
+	if (!('remember' in body) || !!body.remember === config.rememberLogin) return;
+	config.rememberLogin = !!body.remember;
+	writeJson(CONFIG_FILE, config);
+}
+
 function loginWithSavedSession() {
-	if (!fs.existsSync(SESSION_FILE)) return false;
-	app.status = 'loggingIn';
+	const token = savedToken();
+	if (!token) return false;
+	if (app.status !== 'reconnecting') app.status = 'loggingIn';
 	log('Logging in with saved session...');
-	client.logOn({ refreshToken: fs.readFileSync(SESSION_FILE, 'utf8').trim(), ...LOGON_OPTS });
+	try {
+		client.logOn({ refreshToken: token, ...LOGON_OPTS });
+	} catch (err) {   // e.g. a corrupt token file
+		forgetToken();
+		app.status = 'loggedOut';
+		app.error = 'Your saved sign-in is no longer valid. Sign in again.';
+		return false;
+	}
 	return true;
+}
+
+// After a connection error, keep trying with the saved sign-in instead of asking for the password
+// again: 30 s, 1 min, 2 min, … up to 10 min between attempts. Idling resumes when it reconnects.
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+function scheduleReconnect(why) {
+	clearTimeout(reconnectTimer);
+	const delay = Math.min(10 * 60_000, 30_000 * 2 ** reconnectAttempt++);
+	app.status = 'reconnecting';
+	log(`${why} Reconnecting with your saved sign-in in ${delay >= 60_000 ? `${Math.round(delay / 60_000)} min` : `${delay / 1000} s`}.`);
+	reconnectTimer = setTimeout(loginWithSavedSession, delay);
 }
 
 // ---------- card drops ----------
@@ -522,7 +606,7 @@ function cancelShutdown() {
 	app.shutdownAt = null;
 }
 
-const hasPlayed = (appid) => (app.library.find((a) => a.appid === appid)?.minutes || 0) > 0;
+const hasPlayed = (appid) => (app.library.find((a) => a.appid === appid)?.minutes || 0) >= (config.playedMinutes || 1);
 
 // Android may kill the app in the background; when it comes back, carry on with what was idling.
 // (A deliberate stop or quit clears this.)
@@ -556,7 +640,7 @@ function addCardGames(appids) {
 	if (config.playedOnly) {
 		const skipped = added.filter((id) => !hasPlayed(id));
 		added = added.filter((id) => hasPlayed(id));
-		if (skipped.length) log(`Skipping ${skipped.length} card game(s) you've never played.`);
+		if (skipped.length) log(`Skipping ${skipped.length} card game(s) you haven't played yet.`);
 	}
 	if (!added.length) throw new Error('Every game with card drops is already idling.');
 	session.games = session.games.filter((g) => !added.includes(g.appid));   // replace finished entries
@@ -601,8 +685,8 @@ function startSession(games, kind = 'hours') {
 	if (config.playedOnly) {
 		const skipped = games.filter((g) => !hasPlayed(g.appid));
 		games = games.filter((g) => hasPlayed(g.appid));
-		if (!games.length) throw new Error("None of these games have been played before. Turn off \"Only games I've played\" to idle them.");
-		for (const g of skipped) log(`Skipping ${app.library.find((a) => a.appid === g.appid)?.name || `App ${g.appid}`} - never played.`);
+		if (!games.length) throw new Error(`None of these games have been played for ${config.playedMinutes}+ min yet. Change "Idle only games I've played" in Settings to idle them.`);
+		for (const g of skipped) log(`Skipping ${app.library.find((a) => a.appid === g.appid)?.name || `App ${g.appid}`} - not played yet (under ${config.playedMinutes} min).`);
 	}
 	if (session) stopSession('Restarting with new settings.');
 	const resolved = games.map(resolveGame);
@@ -742,8 +826,15 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'preventSleep', 'shutdownWhenDone']) {
+	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
+	}
+	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
+	if ('rememberLogin' in body && !!body.rememberLogin !== config.rememberLogin) {
+		config.rememberLogin = !!body.rememberLogin;
+		const token = savedToken();
+		if (!config.rememberLogin && fs.existsSync(SESSION_FILE)) { memToken = token; fs.unlinkSync(SESSION_FILE); }   // signed in until the app closes
+		if (config.rememberLogin && token) saveToken(token);
 	}
 	if (CARD_MODES.includes(body.cardMode) && body.cardMode !== config.cardMode) {
 		config.cardMode = body.cardMode;
@@ -790,6 +881,7 @@ const routes = {
 	'POST /api/login': (body) => {
 		if (app.status === 'loggedIn') throw new Error('Already logged in');
 		if (!body.username || !body.password) throw new Error('Enter username and password');
+		applyRemember(body);
 		qrLogin?.cancel();
 		qrLogin = null;
 		app.qr = null;
@@ -816,7 +908,7 @@ const routes = {
 			pwLogin = null;
 			app.guard = null;
 			app.status = 'loggingIn';
-			fs.writeFileSync(SESSION_FILE, refreshToken, { mode: 0o600 });
+			saveToken(refreshToken);
 			log(`Sign-in approved for ${accountName}.`);
 			client.logOn({ refreshToken, ...LOGON_OPTS });
 		}).catch((err) => {
@@ -835,10 +927,11 @@ const routes = {
 		if (app.status !== 'loggedIn') { app.status = 'loggedOut'; app.guard = null; }
 	},
 
-	'POST /api/login/qr': async () => {
+	'POST /api/login/qr': async (body) => {
 		if (app.status === 'loggedIn' || app.status === 'loggingIn') throw new Error('Already logged in');
 		pwLogin?.cancel();
 		pwLogin = null;
+		applyRemember(body);
 		qrLogin?.cancel();
 		app.error = null;
 		app.qr = { svg: null, scanned: false };
@@ -858,7 +951,7 @@ const routes = {
 			if (qrLogin !== attempt) return;
 			qrLogin = null;
 			app.qr = null;
-			fs.writeFileSync(SESSION_FILE, refreshToken, { mode: 0o600 });
+			saveToken(refreshToken);
 			app.status = 'loggingIn';
 			log(`QR login approved for ${accountName}.`);
 			client.logOn({ refreshToken, ...LOGON_OPTS });
@@ -903,8 +996,9 @@ const routes = {
 
 	'POST /api/logout': () => {
 		stopSession('Logged out.');
+		clearTimeout(reconnectTimer);
 		client.logOff();
-		if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+		forgetToken();
 		app.status = 'loggedOut';
 		app.library = [];
 		app.account = null;

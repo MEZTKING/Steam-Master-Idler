@@ -253,6 +253,9 @@
 	#at-games .row .hours { white-space: nowrap; }
 	.stats-actions { display: flex; align-items: center; padding: 10px 16px; }
 	.stats-actions .spacer { flex: 1; }
+	.inline-num input { width: 64px; padding: 2px 6px; margin: 0 4px; font-size: 12px; }
+	.check-inline { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; cursor: pointer; }
+	.check-inline input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -285,6 +288,7 @@
 			<form id="login-form" class="hidden">
 				<label>Username <input name="username" autocomplete="username" required></label>
 				<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+				<label class="check-inline"><input type="checkbox" name="remember" checked> Keep me signed in</label>
 				<button class="primary" type="submit">Log in</button>
 				<div class="error" id="login-error"></div>
 				<div class="hint">Your password goes straight to Steam and is never saved. A login token is stored locally so you only sign in once.</div>
@@ -335,7 +339,7 @@
 				<div class="cards-stats">
 					<div class="stat"><div class="v" id="cs-drops">—</div><div class="k">Card drops left</div></div>
 					<div class="stat"><div class="v" id="cs-games">—</div><div class="k">Games to idle</div></div>
-					<div class="stat"><div class="v" id="cs-skipped">0</div><div class="k">Skipped (never played)</div></div>
+					<div class="stat"><div class="v" id="cs-skipped">0</div><div class="k">Skipped (not played yet)</div></div>
 				</div>
 				<div class="behavior">Behavior: <b id="cs-mode"></b> · Order: <b id="cs-order"></b>
 					<button class="linkish" id="cs-change">Change</button></div>
@@ -443,7 +447,12 @@
 			<label class="opt nomobile"><input type="checkbox" data-k="shutdownWhenDone"><span>Shut down computer when done
 				<small>When every game reaches its target or runs out of cards (or the session limit is hit). You get 60 seconds to cancel.</small></span></label>
 			<label class="opt"><input type="checkbox" data-k="playedOnly"><span>Idle only games I've played before
-				<small>Skips games with 0 hours. Steam only refunds games played under 2 hours, so this keeps new games refundable.</small></span></label>
+				<small>Steam only refunds games played under 2 hours, so this keeps new games refundable.</small>
+				<small class="inline-num">A game counts as played after <input type="number" data-n="playedMinutes" min="1" max="6000" step="1"> minute(s) of playtime.</small></span></label>
+			<label class="opt"><input type="checkbox" data-k="rememberLogin"><span>Keep me signed in on this device
+				<small>Saves your Steam sign-in (not your password) so you don't have to sign in again. If Steam disconnects, the idler reconnects on its own. Off: you sign in each time the app starts.</small></span></label>
+			<label class="opt" id="opt-takeover"><input type="checkbox" data-k="autoTakeover"><span>Take over idling when my other device stops
+				<small>When your PC (or another device) stops playing or idling, this one waits a minute and then starts idling your queue here (or the card idler if the queue is empty). If the other device starts again, this one pauses. Keep the app open in the background.</small></span></label>
 		</fieldset>
 		<fieldset>
 			<legend>Card idling behavior</legend>
@@ -532,7 +541,7 @@ function save() {
 const libGame = (appid) => S?.library.find((g) => g.appid === appid);
 const dropsOf = (appid) => S?.cards.drops[appid] || 0;
 const playedOnly = () => !!S?.config.playedOnly;
-const unplayed = (appid) => !(libGame(appid)?.minutes > 0);
+const unplayed = (appid) => (libGame(appid)?.minutes || 0) < (S?.config.playedMinutes || 1);
 
 let renderingQueue = false;   // replacing a focused input fires 'change' again mid-render
 function renderQueue() {
@@ -553,7 +562,7 @@ function renderQueueRows() {
 		let sub = `${cur} played`;
 		if (g && q.mode === 'total' && q.hours !== '') sub += ` · ${Math.max(0, q.hours - g.minutes / 60).toFixed(1)}h to go`;
 		if (g && q.mode === 'more' && q.hours !== '') sub += ` · ends at ${(g.minutes / 60 + +q.hours).toFixed(1)}h`;
-		if (playedOnly() && unplayed(q.appid)) sub += ' · <span class="warn">never played, will be skipped</span>';
+		if (playedOnly() && unplayed(q.appid)) sub += ` · <span class="warn">not played ${S.config.playedMinutes}+ min yet, will be skipped</span>`;
 		else if (q.mode === 'cards') sub += S.cards.checkedAt ? ` · ${dropsOf(q.appid)} card drop(s) left` : ' · card drops not checked yet';
 		return `<div class="qrow" data-i="${i}">
 			${iconHtml(g?.icon)}
@@ -617,6 +626,8 @@ function fillSettings() {
 	});
 	document.querySelectorAll('#settings input[type=radio]').forEach((el) => { el.checked = c[el.name] === el.value; });
 	$('#diag-version').textContent = S.version ? `v${S.version}` : '';
+	document.querySelectorAll('#settings [data-n]').forEach((el) => { el.value = c[el.dataset.n]; });
+	$('#opt-takeover').classList.toggle('hidden', c.idleMethod === 'steamApp');   // only for the idler's own login
 	document.querySelectorAll('#settings .desk').forEach((el) => el.classList.toggle('hidden', !S.desktop));
 	document.querySelectorAll('#settings .nomobile').forEach((el) => el.classList.toggle('hidden', !!S.mobile));
 	$('#method-set').classList.toggle('hidden', !!S.mobile);   // phones can only use the idler's own login
@@ -632,6 +643,7 @@ async function setPref(patch) {
 }
 $('#settings').addEventListener('change', (e) => {
 	const el = e.target;
+	if (el.dataset.n) return setPref({ [el.dataset.n]: Math.max(1, parseInt(el.value, 10) || 1) });
 	if (el.dataset.k === 'darkTheme') setPref({ theme: el.checked ? 'dark' : 'light' });
 	else if (el.dataset.k) setPref({ [el.dataset.k]: el.checked });
 	else if (el.type === 'radio') setPref({ [el.name]: el.value });
@@ -697,7 +709,7 @@ function renderCardIdler(force) {
 		: list.map((g) => `<div class="row ${g.skip ? 'skip' : ''}">
 			${iconHtml(g.icon)}
 			<div class="name" title="${esc(g.name)} (${g.appid})">${esc(g.name)}</div>
-			${g.skip ? '<span class="tag">never played · skipped</span>' : ''}
+			${g.skip ? '<span class="tag">not played yet · skipped</span>' : ''}
 			<span class="drops">${CARD} ${g.drops}</span>
 			<span class="hours">${hours(g.minutes)}</span>
 		</div>`).join('');
@@ -742,7 +754,7 @@ const sessionIds = () => new Set((S.session?.games || []).filter((g) => !g.done)
 function addButton(appid, inQueue) {
 	if (S.session && sessionIds().has(appid)) return '<button class="small" disabled>Idling</button>';
 	if (!S.session && inQueue.has(appid)) return '<button class="small" disabled>Added</button>';
-	if (playedOnly() && unplayed(appid)) return '<button class="small" disabled title="You haven\'t played this yet. Turn off &quot;Only games I\'ve played before&quot; to add it.">Unplayed</button>';
+	if (playedOnly() && unplayed(appid)) return '<button class="small" disabled title="You haven\'t played this enough yet. Change &quot;Idle only games I\'ve played before&quot; in Settings to add it.">Unplayed</button>';
 	return `<button class="small" data-add="${appid}">+ Add</button>`;
 }
 
@@ -934,7 +946,7 @@ let qrStarting = false;
 async function startQr() {
 	$('#login-error').textContent = '';
 	qrStarting = true;
-	try { await api('/api/login/qr', {}); } catch (e) { $('#login-error').textContent = e.message; }
+	try { await api('/api/login/qr', { remember: $('#login-form [name=remember]').checked }); } catch (e) { $('#login-error').textContent = e.message; }
 	await poll();
 	qrStarting = false;
 }
@@ -963,7 +975,7 @@ $('#login-form').onsubmit = async (e) => {
 	e.preventDefault();
 	const f = new FormData(e.target);
 	$('#login-error').textContent = '';
-	try { await api('/api/login', { username: f.get('username'), password: f.get('password') }); e.target.password.value = ''; }
+	try { await api('/api/login', { username: f.get('username'), password: f.get('password'), remember: !!f.get('remember') }); e.target.password.value = ''; }
 	catch (err) { $('#login-error').textContent = err.message; }
 	poll();
 };
@@ -987,7 +999,7 @@ $('#logout').onclick = async () => {
 // ---------- main render ----------
 
 function render() {
-	const loggedIn = S.status === 'loggedIn';
+	const loggedIn = S.status === 'loggedIn' || S.status === 'reconnecting';   // reconnecting: keep the app on screen
 	$('#login').classList.toggle('hidden', loggedIn);
 	$('#app').classList.toggle('hidden', !loggedIn);
 	$('#logout').classList.toggle('hidden', !loggedIn);
@@ -1004,7 +1016,7 @@ function render() {
 	const s = S.session;
 	const paused = s && s.effectivePaused;
 	pill.className = 'pill' + (s ? (paused ? ' paused' : ' on') : '');
-	pill.textContent = !loggedIn ? (S.status === 'loggedOut' ? 'offline' : 'signing in')
+	pill.textContent = S.status === 'reconnecting' ? 'reconnecting' : !loggedIn ? (S.status === 'loggedOut' ? 'offline' : 'signing in')
 		: !s ? 'ready' : s.paused ? 'paused'
 		: s.method === 'steamApp' && s.games.some((g) => g.active) && s.games.filter((g) => g.active).every((g) => g.helper?.state === 'failed') ? 'waiting for Steam'
 		: !paused ? 'idling' : s.blocked ? 'paused · playing elsewhere' : 'reconnecting';
