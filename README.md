@@ -35,7 +35,9 @@ The idler never changes your online status unless you pick one under **Show me a
 | Show Steam username | Show your name in the top bar. |
 | Prevent computer from sleeping | Keeps the computer awake while idling. |
 | Shut down computer when done | Powers off when everything is finished, after a 60-second countdown you can cancel. |
-| Idle only games I've played before | Skips games with 0 hours, so new games stay refundable (Steam refunds games played under 2 hours). |
+| Idle only games I've played before | Skips games you haven't played yet, so new games stay refundable (Steam refunds games played under 2 hours). "Played" means at least N minutes, 1 by default. |
+| Keep me signed in on this device | Saves your Steam sign-in (never your password). If Steam disconnects, the idler reconnects by itself and resumes. Off: sign in each time the app starts. |
+| Take over idling when my other device stops | When your PC (or another device) stops playing/idling, this device starts idling its queue (or the card idler) a minute later, and pauses again if the other one starts. Not used when idling through the Steam app. |
 
 **Card idling behavior**
 - **Fast mode** (recommended): all card games together for 5 minutes, then each one alone for a moment to trigger drops, then repeat.
