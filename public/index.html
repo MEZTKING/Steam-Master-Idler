@@ -245,6 +245,7 @@
 	.steam-check.ok { color: var(--good); }
 	.warn-text { color: var(--warn) !important; }
 	.tag.bad { color: var(--warn); }
+	a.tag { text-decoration: none; }
 	.steam-check.bad { color: var(--warn); }
 	/* all-time stats */
 	.h2-note { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
@@ -256,6 +257,54 @@
 	.inline-num input { width: 64px; padding: 2px 6px; margin: 0 4px; font-size: 12px; }
 	.check-inline { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; cursor: pointer; }
 	.check-inline input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+	/* idler / tools switch */
+	.viewtabs { display: flex; gap: 6px; margin-bottom: 16px; }
+	.viewtabs button { padding: 7px 16px; font-weight: 600; color: var(--muted); }
+	.viewtabs button.active { border-color: var(--accent); color: var(--accent-2); background: var(--panel); }
+	.viewtabs .badge { font-size: 11px; font-weight: 600; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: #fff; }
+	/* tools */
+	#tools { display: grid; gap: 20px; max-width: 860px; }
+	.tool-desc { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+	.switch { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); cursor: pointer; font-weight: 600; }
+	.switch input { width: 34px; height: 18px; appearance: none; border-radius: 99px; background: var(--border); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+	.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+	.switch input:checked { background: var(--good); }
+	.switch input:checked::after { left: 18px; }
+	.tool-sub { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); padding: 12px 16px 6px; margin: 0; font-weight: 600; }
+	.tool-note { padding: 0 16px 12px; font-size: 12px; color: var(--muted); }
+	.tools-intro { font-size: 13px; }
+	.tool-ic { font-size: 15px; }
+	.tool:not(.on) .tool-desc { border-bottom: 0; }
+	a.btn.big { padding: 7px 14px; font-size: 14px; }
+	.tool-sub .linkish { margin-left: 8px; text-transform: none; letter-spacing: 0; }
+	textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; font: inherit; resize: vertical; }
+	textarea:focus { outline: none; border-color: var(--accent); }
+	.ach-pick { display: flex; gap: 8px; }
+	.ach-pick input { flex: 1; min-width: 0; }
+	.ach-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+	#ach-list { max-height: 60vh; overflow-y: auto; }
+	.ach-row { cursor: pointer; }
+	.ach-row input { width: 16px; height: 16px; accent-color: var(--good); flex-shrink: 0; margin: 0; }
+	.ach-row .name small { display: block; color: var(--muted); font-size: 12px; white-space: normal; }
+	.ach-row.changed { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+	.ach-row.locked .icon { filter: grayscale(1); opacity: .6; }
+	.ach-row.prot { cursor: default; opacity: .6; }
+	.price s { color: var(--muted); font-size: 12px; margin-right: 4px; }
+	.disc { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: var(--good); color: #fff; }
+	.wl-row.deal { background: color-mix(in srgb, var(--good) 9%, transparent); }
+	.wl-row input { width: 76px; padding: 3px 6px; font-size: 12px; }
+	.res-ok { color: var(--good); }
+	.res-bad { color: var(--warn); }
+	@media (max-width: 560px) {
+		.ach-actions .spacer { display: none; }
+		.wl-row { flex-wrap: wrap; }
+		.wl-row .name { flex-basis: calc(100% - 80px); }
+	}
+	/* update banner */
+	#update-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 16px; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+	#update-banner .msg { flex: 1; min-width: 180px; }
+	#update-banner progress { width: 120px; accent-color: var(--accent); }
+	#update-notes { white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 200px; overflow-y: auto; width: 100%; margin: 4px 0 0; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -271,6 +320,20 @@
 </header>
 
 <main>
+	<div id="update-banner" class="panel hidden">
+		<span class="msg">⬆ <b id="upd-title"></b> <span class="muted" id="upd-sub"></span></span>
+		<progress id="upd-progress" class="hidden" max="1" value="0"></progress>
+		<button class="linkish" id="upd-notes-btn">What's new</button>
+		<button class="small primary" id="upd-go">Update</button>
+		<button class="small" id="upd-later" title="Hide until the next version">Later</button>
+		<pre id="update-notes" class="hidden"></pre>
+	</div>
+
+	<nav class="viewtabs hidden" id="viewtabs">
+		<button data-view="idler" class="active">🎮 Idler</button>
+		<button data-view="tools">🧰 Tools<span class="badge hidden" id="tools-badge"></span></button>
+	</nav>
+
 	<!-- login -->
 	<section id="login" class="panel hidden">
 		<h2>Sign in to Steam</h2>
@@ -424,6 +487,148 @@
 			</div>
 		</div>
 	</section>
+
+	<!-- tools: extra Steam features that share the same sign-in -->
+	<section id="tools" class="hidden">
+		<div class="tools-intro muted">Extra Steam tools that use the same sign-in. Switch on only what you use: a tool that's off isn't loaded and uses no resources.</div>
+
+		<!-- 📷 screenshot uploader -->
+		<div class="panel tool" data-tool="screenshots">
+			<h2><span class="tool-ic">📷</span> Screenshot uploader<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Take screenshots in your games as usual (F12 in Steam). When you close the game, the new ones are uploaded to your Steam screenshot library on their own, set to <b>Private</b> unless you choose otherwise. Keep Steam Master Idler running in the tray.</div>
+			<div class="tool-unavailable empty hidden"></div>
+			<div class="tool-body hidden">
+				<div class="stats">
+					<div class="stat"><div class="v" id="ss-uploaded">0</div><div class="k">Uploaded</div></div>
+					<div class="stat"><div class="v" id="ss-waiting">0</div><div class="k">Waiting for game to close</div></div>
+					<div class="stat"><div class="v" id="ss-backlog">0</div><div class="k">Older, not uploaded</div></div>
+				</div>
+				<div id="ss-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>When to upload
+							<select id="ss-when">
+								<option value="afterClose">After I close the game</option>
+								<option value="immediately">Right after each screenshot</option>
+							</select></label>
+						<label>Visibility on Steam
+							<select id="ss-privacy">
+								<option value="private">Private (only me)</option>
+								<option value="friends">Friends only</option>
+								<option value="unlisted">Unlisted</option>
+								<option value="public">Public</option>
+							</select></label>
+						<label>Steam folder
+							<input id="ss-steamdir" placeholder="Found automatically"></label>
+					</div>
+					<div class="actions">
+						<button class="primary" id="ss-upload-now" title="Upload everything waiting now, even if the game is still running">⇪ Upload now</button>
+						<button id="ss-upload-older" class="hidden">Upload older screenshots</button>
+						<button id="ss-open">Open screenshots folder</button>
+						<a class="btn big" id="ss-library" target="_blank" rel="noopener">View on Steam ↗</a>
+						<span class="error" id="ss-error"></span>
+					</div>
+				</div>
+				<div id="ss-failed-wrap" class="hidden">
+					<h3 class="tool-sub">Couldn't upload <button class="linkish" id="ss-retry">Retry</button></h3>
+					<div id="ss-failed"></div>
+				</div>
+				<h3 class="tool-sub">Recent uploads</h3>
+				<div id="ss-recent"></div>
+				<div class="tool-note">Uploads go through the idler's Steam sign-in, so the idler must be signed in to the same account as your Steam app. Steam's own screenshot manager may still list these as not uploaded; don't upload them again there.</div>
+			</div>
+		</div>
+
+		<!-- 🏆 achievement manager -->
+		<div class="panel tool" data-tool="achievements">
+			<h2><span class="tool-ic">🏆</span> Achievement manager<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">See every achievement of a game and unlock or lock them, like Steam Achievement Manager. The game doesn't have to be installed or running.</div>
+			<div class="tool-body hidden">
+				<div class="panel-body">
+					<div class="ach-pick">
+						<input id="ach-game" list="ach-games" placeholder="Game name or AppID…" autocomplete="off">
+						<datalist id="ach-games"></datalist>
+						<button class="primary" id="ach-load">Load</button>
+					</div>
+					<div class="error" id="ach-error"></div>
+					<div id="ach-queue" class="hint hidden"></div>
+				</div>
+				<div id="ach-game-wrap" class="hidden">
+					<div class="behavior"><b id="ach-title"></b><span class="muted" id="ach-count"></span><span class="spacer" style="flex:1"></span>
+						<input id="ach-filter" placeholder="Filter…" style="width:140px;padding:4px 8px">
+						<select id="ach-show" style="padding:4px 8px"><option value="all">All</option><option value="locked">Locked</option><option value="unlocked">Unlocked</option></select></div>
+					<div class="ach-actions">
+						<button class="small" id="ach-all-on">Unlock all</button>
+						<button class="small" id="ach-all-off">Lock all</button>
+						<button class="small" id="ach-revert">Undo changes</button>
+						<span class="spacer" style="flex:1"></span>
+						<button class="small" id="ach-gradual" title="Unlock the ticked achievements one by one instead of all at once">Unlock gradually</button>
+						<span class="inline-num">every <input type="number" id="ach-every" min="1" max="1440" value="10"> min</span>
+						<button class="small primary" id="ach-apply" disabled>Apply</button>
+					</div>
+					<div id="ach-list"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 🏷 wishlist sale alerts -->
+		<div class="panel tool" data-tool="wishlist">
+			<h2><span class="tool-ic">🏷</span> Wishlist sale alerts<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Checks your wishlist every few hours and notifies you when a game goes on sale, drops to the price you set for it, or (optional) may be delisted soon. Each one is announced once.</div>
+			<div class="tool-body hidden">
+				<div id="wl-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>Notify when discounted at least
+							<select id="wl-min"><option value="10">10%</option><option value="25">25%</option><option value="33">33%</option><option value="50">50%</option><option value="66">66%</option><option value="75">75%</option><option value="90">90%</option></select></label>
+						<label>Check every
+							<select id="wl-every"><option value="1">hour</option><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">day</option></select></label>
+					</div>
+					<label class="opt"><input type="checkbox" id="wl-delist"><span>Warn me when a game may be delisted soon
+						<small>Flags wishlist games that are no longer sold, and once a day reads each game's Steam news for delisting notices ("will be removed from Steam", "last chance to buy"…). Steam has no official signal for this, so it's a best guess.</small></span></label>
+					<div class="actions"><button class="primary" id="wl-check">↻ Check now</button>
+						<input id="wl-filter" placeholder="Filter…" style="width:160px">
+						<span class="error" id="wl-error"></span></div>
+				</div>
+				<div id="wl-list"></div>
+			</div>
+		</div>
+
+		<!-- 🎁 sale event helper -->
+		<div class="panel tool" data-tool="sale">
+			<h2><span class="tool-ic">🎁</span> Sale event helper<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">During Steam sales: claims the free daily sticker and goes through your Discovery Queue for the event rewards, once a day. Outside a sale it just finds nothing to do.</div>
+			<div class="tool-body hidden">
+				<div id="sale-status" class="steam-check"></div>
+				<div class="panel-body">
+					<label class="opt"><input type="checkbox" id="sale-sticker"><span>Claim the free daily sale item (sticker)</span></label>
+					<label class="opt"><input type="checkbox" id="sale-queue"><span>Go through the Discovery Queue
+						<small class="inline-num">Queues per day: <select id="sale-queues" style="padding:2px 6px;font-size:12px"><option>1</option><option>2</option><option>3</option></select></small></span></label>
+					<div class="actions"><button class="primary" id="sale-run">▶ Run now</button><span class="error" id="sale-error"></span></div>
+				</div>
+				<div id="sale-results"></div>
+			</div>
+		</div>
+
+		<!-- 🆓 free game claimer -->
+		<div class="panel tool" data-tool="freegames">
+			<h2><span class="tool-ic">🆓</span> Free game claimer<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Paste store links or AppIDs of free games (free-to-play, or free to keep for a limited time) and they're added to your account. Several at once is fine.</div>
+			<div class="tool-body hidden">
+				<div class="panel-body">
+					<textarea id="fg-input" rows="3" placeholder="https://store.steampowered.com/app/440/&#10;570&#10;sub/123"></textarea>
+					<div class="actions"><button class="primary" id="fg-claim">＋ Add to my account</button><span class="error" id="fg-error"></span>
+						<span class="spacer" style="flex:1"></span><button class="linkish" id="fg-clear">Clear history</button></div>
+				</div>
+				<div id="fg-history"></div>
+			</div>
+		</div>
+	</section>
 </main>
 
 <dialog id="settings">
@@ -441,6 +646,8 @@
 			<legend>General</legend>
 			<label class="opt desk"><input type="checkbox" data-k="minimizeToTray"><span>Minimize to system tray
 				<small>Minimizing or closing the window keeps idling in the tray. Off: closing quits.</small></span></label>
+			<label class="opt desk"><input type="checkbox" data-k="freeMemoryInTray"><span>Free memory while in the tray
+				<small>Closes the window completely while it's in the tray, so only the idler itself keeps running (saves about 100 MB). Opening it again takes a second.</small></span></label>
 			<label class="opt"><input type="checkbox" data-k="darkTheme"><span>Dark theme</span></label>
 			<label class="opt"><input type="checkbox" data-k="showUsername"><span>Show Steam username of signed-in user</span></label>
 			<label class="opt desk"><input type="checkbox" data-k="preventSleep"><span>Prevent computer from sleeping while idling</span></label>
@@ -470,6 +677,17 @@
 			<label class="opt"><input type="radio" name="cardOrder" value="default"><span>Default (alphabetical order)</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="mostDrops"><span>Games with the most card drops first</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="leastDrops"><span>Games with the fewest card drops first</span></label>
+		</fieldset>
+		<fieldset>
+			<legend>Updates</legend>
+			<label class="opt"><input type="checkbox" data-k="checkUpdates"><span>Check for updates
+				<small>One small request to GitHub after starting and every 12 hours.</small></span></label>
+			<label class="opt" id="opt-autoupdate"><input type="checkbox" data-k="autoUpdate"><span>Download updates in the background
+				<small>The new version installs when you press Restart to update.</small></span></label>
+			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
+				<button class="small" id="upd-check">Check now</button>
+				<span class="muted" id="upd-status" style="font-size:12px"></span>
+			</div>
 		</fieldset>
 		<fieldset>
 			<legend>Troubleshooting</legend>
@@ -648,7 +866,7 @@ $('#settings').addEventListener('change', (e) => {
 	else if (el.dataset.k) setPref({ [el.dataset.k]: el.checked });
 	else if (el.type === 'radio') setPref({ [el.name]: el.value });
 });
-const openSettings = () => { fillSettings(); $('#settings').showModal(); };
+const openSettings = () => { fillSettings(); if (S.update) renderUpdate(); $('#settings').showModal(); };
 $('#open-settings').onclick = openSettings;
 $('#cs-change').onclick = openSettings;
 $('#close-settings').onclick = () => $('#settings').close();
@@ -996,12 +1214,338 @@ $('#logout').onclick = async () => {
 	await api('/api/logout', {}); queue = null; settingsLoaded = false; qrAutoStarted = false; poll();
 };
 
+// ---------- idler / tools views ----------
+
+let view = 'idler';
+try { view = localStorage.getItem('view') === 'tools' ? 'tools' : 'idler'; } catch {}
+function showView(v) {
+	view = v;
+	try { localStorage.setItem('view', v); } catch {}
+	document.querySelectorAll('#viewtabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+	if (S) render();
+}
+$('#viewtabs').onclick = (e) => { const b = e.target.closest('button'); if (b) showView(b.dataset.view); };
+showView(view);
+
+const tool = (id) => S?.tools?.find((t) => t.id === id);
+const toolApi = (id, action, body) => api(`/api/tools/${id}/${action}`, body);
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
+const inTime = (t) => { const m = Math.max(0, Math.round((t - Date.now()) / 60000)); return m < 60 ? `${m} min` : `${Math.round(m / 60)} h`; };
+const setIfIdle = (el, v) => { v = String(v ?? ''); if (document.activeElement !== el && el.value !== v) el.value = v; };
+const setHtml = (el, html) => { if (el.dataset.k !== html) { el.dataset.k = html; el.innerHTML = html; } };
+const pane = (id) => document.querySelector(`.tool[data-tool="${id}"]`);
+
+// on/off switch in every tool's header
+document.querySelectorAll('.tool [data-enable]').forEach((sw) => {
+	sw.onchange = async () => {
+		const id = sw.closest('.tool').dataset.tool;
+		sw.disabled = true;
+		try { await toolApi(id, 'enable', { enabled: sw.checked }); } catch (e) { alert(e.message); }
+		sw.disabled = false;
+		poll();
+	};
+});
+
+async function act(id, action, body, btn, errSel) {
+	if (errSel) $(errSel).textContent = '';
+	if (btn) btn.disabled = true;
+	try { return await toolApi(id, action, body ?? {}); }
+	catch (e) { if (errSel) $(errSel).textContent = e.message; else alert(e.message); }
+	finally { if (btn) btn.disabled = false; poll(); }
+}
+
+function renderTools() {
+	for (const t of S.tools || []) {
+		const p = pane(t.id);
+		if (!p) continue;
+		p.classList.toggle('on', t.enabled);
+		const sw = p.querySelector('[data-enable]');
+		if (!sw.disabled) sw.checked = t.enabled;
+		sw.disabled = !t.available && !t.enabled;
+		p.querySelector('.onoff').textContent = t.enabled ? 'On' : 'Off';
+		const un = p.querySelector('.tool-unavailable');
+		if (un) { un.classList.toggle('hidden', t.available); un.textContent = t.reason || ''; }
+		p.querySelector('.tool-body').classList.toggle('hidden', !t.enabled);
+		if (t.enabled) TOOL_RENDER[t.id]?.(t);
+	}
+}
+
+const TOOL_RENDER = {};
+
+// ----- 📷 screenshot uploader -----
+TOOL_RENDER.screenshots = (t) => {
+	const c = t.settings;
+	setIfIdle($('#ss-when'), c.when);
+	setIfIdle($('#ss-privacy'), c.privacy);
+	setIfIdle($('#ss-steamdir'), c.steamDir);
+	$('#ss-steamdir').placeholder = t.steamDir ? `Found: ${t.steamDir}` : 'Found automatically';
+	$('#ss-uploaded').textContent = (t.uploaded || 0).toLocaleString();
+	$('#ss-waiting').textContent = t.waiting || 0;
+	$('#ss-backlog').textContent = t.backlog || 0;
+	const st = $('#ss-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.busy ? '' : t.folder ? ' ok' : '');
+	st.textContent = t.error ? `⚠ ${t.error}`
+		: t.current ? `Uploading ${t.current.game}: screenshot ${t.current.done + 1} of ${t.current.total}${t.current.games > 1 ? ` (game ${t.current.gameNo} of ${t.current.games}, ${t.current.overall + 1}/${t.current.overallTotal} overall)` : ''}…`
+		: S.status !== 'loggedIn' ? 'Waiting for the Steam sign-in…'
+		: !t.lastScanAt ? 'Looking for your screenshots…'
+		: t.waiting && t.running.length ? `✔ Watching. ${t.waiting} screenshot(s) will upload when you close ${t.running.map((g) => g.name).join(', ')}.`
+		: t.waiting && !t.canDetectGame ? `✔ Watching. ${t.waiting} screenshot(s) will upload once you've taken none for 10 minutes (the game you play can't be seen while idling through the Steam app).`
+		: t.waiting ? `✔ Watching. ${t.waiting} screenshot(s) about to upload.`
+		: t.running.length ? `✔ Watching. Playing ${t.running.map((g) => g.name).join(', ')}; new screenshots upload when you close it.`
+		: '✔ Watching for new screenshots.';
+	$('#ss-upload-now').disabled = t.busy || !t.pending || S.status !== 'loggedIn';
+	$('#ss-upload-older').classList.toggle('hidden', !t.backlog);
+	$('#ss-upload-older').textContent = `Upload ${t.backlog} older screenshot${t.backlog === 1 ? '' : 's'}`;
+	$('#ss-upload-older').disabled = t.busy;
+	$('#ss-open').classList.toggle('hidden', !S.desktop || !t.folder);
+	$('#ss-library').classList.toggle('hidden', !t.libraryUrl);
+	if (t.libraryUrl) $('#ss-library').href = t.libraryUrl;
+	$('#ss-failed-wrap').classList.toggle('hidden', !t.failed?.length);
+	setHtml($('#ss-failed'), (t.failed || []).map((f) => `<div class="row"><div class="name" title="${esc(f.file)}">${esc(f.game)} · <span class="muted">${esc(f.file)}</span></div><span class="hours warn-text">${esc(f.error)}</span></div>`).join(''));
+	setHtml($('#ss-recent'), t.recent?.length ? t.recent.map((r) => `<div class="row">
+		${iconHtml(libGame(r.appid)?.icon)}
+		<div class="name" title="${esc(r.name)}">${esc(r.game)} <span class="muted">· ${esc(r.name)}</span></div>
+		<span class="hours">${ago(r.at)}</span></div>`).join('') : '<div class="empty">Nothing uploaded yet.</div>');
+};
+$('#ss-when').onchange = (e) => act('screenshots', 'settings', { when: e.target.value }, null, '#ss-error');
+$('#ss-privacy').onchange = (e) => act('screenshots', 'settings', { privacy: e.target.value }, null, '#ss-error');
+$('#ss-steamdir').onchange = (e) => act('screenshots', 'settings', { steamDir: e.target.value }, null, '#ss-error');
+$('#ss-upload-now').onclick = (e) => act('screenshots', 'upload-now', {}, e.target, '#ss-error');
+$('#ss-upload-older').onclick = (e) => {
+	const t = tool('screenshots');
+	if (!confirm(`Upload ${t.backlog} older screenshot(s) to your Steam library as ${$('#ss-privacy').selectedOptions[0].text}? Skip this if you've uploaded them yourself before, or they'll be there twice.`)) return;
+	act('screenshots', 'upload-older', {}, e.target, '#ss-error');
+};
+$('#ss-open').onclick = () => act('screenshots', 'open-folder', {}, null, '#ss-error');
+$('#ss-retry').onclick = () => act('screenshots', 'retry-failed', {}, null, '#ss-error');
+
+// ----- 🏆 achievement manager -----
+let achGame = null;          // loaded game
+const achWant = new Map();   // id -> wanted unlocked state (pending changes)
+let achListKey = '';
+function achGameList() {
+	const key = S.library.length + '|' + S.libraryVersion;
+	if ($('#ach-games').dataset.k === key) return;
+	$('#ach-games').dataset.k = key;
+	$('#ach-games').innerHTML = S.library.map((g) => `<option value="${esc(g.name)}">${g.appid}</option>`).join('');
+}
+function achPickedAppid() {
+	const v = $('#ach-game').value.trim();
+	if (/^\d+$/.test(v)) return +v;
+	const g = S.library.find((x) => x.name.toLowerCase() === v.toLowerCase());
+	return g ? g.appid : null;
+}
+async function achLoad(appid) {
+	$('#ach-error').textContent = '';
+	$('#ach-load').disabled = true;
+	try {
+		achGame = await api(`/api/tools/achievements/game?appid=${appid}`);
+		achWant.clear();
+		achRenderList(true);
+	} catch (e) { $('#ach-error').textContent = e.message; }
+	finally { $('#ach-load').disabled = false; }
+}
+function achRenderList(force) {
+	$('#ach-game-wrap').classList.toggle('hidden', !achGame);
+	if (!achGame) return;
+	const term = $('#ach-filter').value.trim().toLowerCase();
+	const show = $('#ach-show').value;
+	const key = JSON.stringify([achGame.appid, achGame.unlocked, [...achWant], term, show, achGame.queued]);
+	if (!force && key === achListKey) return;
+	achListKey = key;
+	$('#ach-title').textContent = achGame.name;
+	$('#ach-count').textContent = ` · ${achGame.unlocked}/${achGame.total} unlocked`;
+	const changes = [...achWant].filter(([id, on]) => achGame.achievements.find((a) => a.id === id)?.unlocked !== on).length;
+	$('#ach-apply').textContent = changes ? `Apply ${changes} change${changes === 1 ? '' : 's'}` : 'Apply';
+	$('#ach-apply').disabled = !changes;
+	$('#ach-revert').disabled = !changes;
+	$('#ach-gradual').disabled = ![...achWant].some(([id, on]) => on && !achGame.achievements.find((a) => a.id === id)?.unlocked);
+	const queued = new Set(achGame.queued || []);
+	const list = achGame.achievements.filter((a) => {
+		const want = achWant.has(a.id) ? achWant.get(a.id) : a.unlocked;
+		if (show === 'locked' && want) return false;
+		if (show === 'unlocked' && !want) return false;
+		return !term || a.name.toLowerCase().includes(term) || a.desc.toLowerCase().includes(term) || a.apiName.toLowerCase().includes(term);
+	});
+	$('#ach-list').innerHTML = !achGame.total ? '<div class="empty">This game has no achievements.</div>'
+		: !list.length ? '<div class="empty">No matches.</div>'
+		: list.map((a) => {
+			const want = achWant.has(a.id) ? achWant.get(a.id) : a.unlocked;
+			const changed = want !== a.unlocked;
+			const tags = [a.protected ? '<span class="tag" title="Only the game itself can change this one">🔒 protected</span>' : '',
+				a.hidden ? '<span class="tag">hidden</span>' : '',
+				queued.has(a.id) ? '<span class="tag">queued</span>' : '',
+				a.unlockedAt ? `<span class="tag done">${new Date(a.unlockedAt).toLocaleDateString()}</span>` : ''].join('');
+			return `<label class="row ach-row ${want ? '' : 'locked'} ${changed ? 'changed' : ''} ${a.protected ? 'prot' : ''}">
+				<input type="checkbox" data-ach="${esc(a.id)}" ${want ? 'checked' : ''} ${a.protected ? 'disabled' : ''}>
+				${a.icon ? `<img class="icon" src="${esc(a.icon)}" alt="" loading="lazy">` : '<div class="icon"></div>'}
+				<div class="name">${esc(a.name)}<small>${esc(a.desc || a.apiName)}</small></div>${tags}</label>`;
+		}).join('');
+}
+$('#ach-load').onclick = () => { const id = achPickedAppid(); if (!id) { $('#ach-error').textContent = 'Pick a game from your library, or type its AppID.'; return; } achLoad(id); };
+$('#ach-game').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#ach-load').click(); });
+$('#ach-filter').addEventListener('input', () => achRenderList());
+$('#ach-show').onchange = () => achRenderList();
+$('#ach-list').addEventListener('change', (e) => {
+	const id = e.target.dataset.ach; if (!id) return;
+	const a = achGame.achievements.find((x) => x.id === id);
+	if (e.target.checked === a.unlocked) achWant.delete(id); else achWant.set(id, e.target.checked);
+	achRenderList();
+});
+const achSetAll = (on) => { for (const a of achGame.achievements) if (!a.protected) { if (a.unlocked === on) achWant.delete(a.id); else achWant.set(a.id, on); } achRenderList(); };
+$('#ach-all-on').onclick = () => achSetAll(true);
+$('#ach-all-off').onclick = () => achSetAll(false);
+$('#ach-revert').onclick = () => { achWant.clear(); achRenderList(); };
+$('#ach-apply').onclick = async (e) => {
+	const changes = [...achWant].map(([id, unlocked]) => ({ id, unlocked }));
+	const r = await act('achievements', 'apply', { appid: achGame.appid, changes }, e.target, '#ach-error');
+	if (r?.achievements) { achGame = r; achWant.clear(); achRenderList(true); }
+};
+$('#ach-gradual').onclick = async (e) => {
+	const ids = [...achWant].filter(([, on]) => on).map(([id]) => id);
+	const r = await act('achievements', 'schedule', { appid: achGame.appid, ids, everyMinutes: $('#ach-every').value }, e.target, '#ach-error');
+	if (r?.achievements) { achGame = r; achWant.clear(); achRenderList(true); }
+};
+TOOL_RENDER.achievements = (t) => {
+	achGameList();
+	const q = $('#ach-queue');
+	q.classList.toggle('hidden', !t.queue);
+	if (t.queue) q.innerHTML = `⏳ ${t.queue} achievement(s) queued (${esc(t.queueGames.join(', '))}), one every ${t.everyMinutes} min${t.nextAt ? `, next in ${inTime(t.nextAt)}` : ''}. <button class="linkish" id="ach-clear-q">Cancel</button>`;
+	const clr = $('#ach-clear-q'); if (clr) clr.onclick = () => act('achievements', 'clear-queue', {}, null, '#ach-error');
+	achRenderList();
+};
+
+// ----- 🏷 wishlist sale alerts -----
+let wlItems = null;
+let wlKey = '';
+async function wlFetch(t) {
+	const key = `${t.lastCheckAt}`;
+	if (wlKey === key) return;
+	wlKey = key;
+	try { wlItems = (await api('/api/tools/wishlist/data')).items; wlRenderList(); } catch (e) { $('#wl-error').textContent = e.message; }
+}
+function wlRenderList() {
+	if (!wlItems) return;
+	const term = $('#wl-filter').value.trim().toLowerCase();
+	const list = wlItems.filter((i) => !term || i.name.toLowerCase().includes(term));
+	setHtml($('#wl-list'), !wlItems.length ? '<div class="empty">Your wishlist is empty (or private and unreadable).</div>'
+		: list.slice(0, 300).map((i) => `<div class="row wl-row ${i.deal ? 'deal' : ''}">
+			<img class="icon" src="https://cdn.akamai.steamstatic.com/steam/apps/${i.appid}/capsule_sm_120.jpg" alt="" loading="lazy" style="width:56px;object-fit:cover" onerror="this.style.visibility='hidden'">
+			<a class="name" href="https://store.steampowered.com/app/${i.appid}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" title="${esc(i.name)}">${esc(i.name)}</a>
+			${i.delist ? (i.delist.url ? `<a class="tag bad" href="${esc(i.delist.url)}" target="_blank" rel="noopener" title="${esc(i.delist.title || '')}">⚠ may be delisted</a>` : `<span class="tag bad" title="${esc(i.delist.title || '')}">⚠ no longer sold</span>`) : ''}
+			${i.discount ? `<span class="disc">−${i.discount}%</span>` : ''}
+			<span class="price hours">${i.free ? 'Free' : i.price ? `${i.discount && i.originalPrice ? `<s>${esc(i.originalPrice)}</s>` : ''}${esc(i.price)}` : '—'}</span>
+			<input type="number" min="0" step="0.01" placeholder="My price" title="Notify me when it costs this much or less" data-wl="${i.appid}" value="${i.target != null ? (i.target / 100).toFixed(2) : ''}">
+		</div>`).join(''));
+}
+$('#wl-filter').addEventListener('input', () => { $('#wl-list').dataset.k = ''; wlRenderList(); });
+$('#wl-list').addEventListener('change', (e) => { const id = e.target.dataset.wl; if (id) act('wishlist', 'target', { appid: +id, price: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; }); });
+$('#wl-min').onchange = (e) => act('wishlist', 'settings', { minDiscount: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; });
+$('#wl-every').onchange = (e) => act('wishlist', 'settings', { everyHours: e.target.value }, null, '#wl-error');
+$('#wl-delist').onchange = (e) => act('wishlist', 'settings', { delistWatch: e.target.checked }, null, '#wl-error').then(() => { wlKey = ''; });
+$('#wl-check').onclick = (e) => act('wishlist', 'check', {}, e.target, '#wl-error').then(() => { wlKey = ''; });
+TOOL_RENDER.wishlist = (t) => {
+	setIfIdle($('#wl-min'), t.settings.minDiscount);
+	setIfIdle($('#wl-every'), t.settings.everyHours);
+	if (document.activeElement !== $('#wl-delist')) $('#wl-delist').checked = !!t.settings.delistWatch;
+	$('#wl-check').disabled = t.busy;
+	const st = $('#wl-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.deals ? ' ok' : '');
+	st.textContent = t.error ? `⚠ ${t.error}` : t.busy ? 'Checking your wishlist…' : !t.lastCheckAt ? 'First check in a moment…'
+		: `${t.deals ? `🔥 ${t.deals} deal(s) for you. ` : ''}${t.delist?.flagged ? `⚠ ${t.delist.flagged} may be delisted. ` : ''}${t.onSale} of ${t.count} wishlist games on sale. Checked ${ago(t.lastCheckAt)}, next check in ${inTime(t.nextAt)}.${t.delist?.scanning ? ' Reading news for delisting notices…' : ''}`;
+	if (t.lastCheckAt) wlFetch({ lastCheckAt: `${t.lastCheckAt}|${t.delist?.checkedAt}|${t.delist?.flagged}` });
+};
+
+// ----- 🎁 sale event helper -----
+$('#sale-sticker').onchange = (e) => act('sale', 'settings', { sticker: e.target.checked }, null, '#sale-error');
+$('#sale-queue').onchange = (e) => act('sale', 'settings', { queue: e.target.checked }, null, '#sale-error');
+$('#sale-queues').onchange = (e) => act('sale', 'settings', { queues: e.target.value }, null, '#sale-error');
+$('#sale-run').onclick = (e) => act('sale', 'run', {}, e.target, '#sale-error');
+TOOL_RENDER.sale = (t) => {
+	const c = t.settings;
+	if (document.activeElement !== $('#sale-sticker')) $('#sale-sticker').checked = c.sticker;
+	if (document.activeElement !== $('#sale-queue')) $('#sale-queue').checked = c.queue;
+	setIfIdle($('#sale-queues'), c.queues);
+	$('#sale-run').disabled = t.busy;
+	const done = (!c.sticker || t.doneToday.sticker) && (!c.queue || t.doneToday.queue);
+	const st = $('#sale-status');
+	st.className = 'steam-check' + (done ? ' ok' : '');
+	st.textContent = t.busy ? 'Working…' : done ? `✔ Done for today. Next run in ${inTime(t.nextDayAt)} (Steam's new day).` : 'Runs shortly after you sign in, then once a day.';
+	setHtml($('#sale-results'), (t.results || []).map((r) => `<div class="row"><span class="${r.ok ? 'res-ok' : 'res-bad'}">${r.ok ? '✔' : '⚠'}</span><div class="name" style="white-space:normal">${esc(r.text)}</div><span class="hours">${ago(r.at)}</span></div>`).join(''));
+};
+
+// ----- 🆓 free game claimer -----
+$('#fg-claim').onclick = async (e) => {
+	const r = await act('freegames', 'claim', { text: $('#fg-input').value }, e.target, '#fg-error');
+	if (r?.results && r.results.every((x) => x.ok)) $('#fg-input').value = '';
+};
+$('#fg-clear').onclick = () => act('freegames', 'clear-history', {}, null, '#fg-error');
+TOOL_RENDER.freegames = (t) => {
+	$('#fg-claim').disabled = t.busy;
+	$('#fg-claim').textContent = t.busy ? 'Adding…' : '＋ Add to my account';
+	$('#fg-clear').classList.toggle('hidden', !t.history?.length);
+	setHtml($('#fg-history'), (t.history || []).map((r) => `<div class="row"><span class="${r.ok ? 'res-ok' : 'res-bad'}">${r.ok ? '✔' : '⚠'}</span>
+		<div class="name" title="${esc(r.input)}">${esc(r.name)} <span class="muted">· ${esc(r.text)}</span></div><span class="hours">${ago(r.at)}</span></div>`).join(''));
+};
+
+// ---------- updates ----------
+
+const fmtMB = (b) => `${(b / 1048576).toFixed(1)} MB`;
+function renderUpdate() {
+	const u = S.update;
+	if (!u) return;
+	let dismissed = null;
+	try { dismissed = localStorage.getItem('updateLater'); } catch {}
+	const show = !!u.available && dismissed !== u.available;
+	$('#update-banner').classList.toggle('hidden', !show);
+	if (u.available) {
+		$('#upd-title').textContent = `Version ${u.available} is available`;
+		$('#upd-sub').textContent = u.download ? `Downloading… ${fmtMB(u.download.done)}${u.download.total ? ` of ${fmtMB(u.download.total)}` : ''}`
+			: u.ready ? 'Downloaded and ready.' : `(you have ${u.current})`;
+		$('#upd-progress').classList.toggle('hidden', !u.download);
+		if (u.download?.total) $('#upd-progress').value = u.download.done / u.download.total;
+		$('#upd-go').textContent = u.action === 'install' ? (u.ready ? 'Restart to update' : 'Update now')
+			: u.action === 'open' ? 'Download & open' : u.action === 'link' ? 'Download update' : 'Open release page';
+		$('#upd-go').disabled = !!u.download;
+		if (!$('#update-notes').dataset.k || $('#update-notes').dataset.k !== u.available) {
+			$('#update-notes').dataset.k = u.available;
+			$('#update-notes').textContent = u.notes || 'See the release page for details.';
+		}
+	}
+	$('#opt-autoupdate').classList.toggle('hidden', !(u.kind === 'nsis' || u.kind === 'appimage'));
+	$('#upd-check').disabled = u.checking;
+	$('#upd-status').textContent = u.checking ? 'Checking…' : u.error ? `⚠ ${u.error}`
+		: u.available ? `Version ${u.available} is available.` : u.checkedAt ? `You're up to date (v${u.current}). Checked ${new Date(u.checkedAt).toLocaleTimeString()}.` : `You have v${u.current}.`;
+}
+$('#upd-notes-btn').onclick = () => $('#update-notes').classList.toggle('hidden');
+$('#upd-later').onclick = () => { try { localStorage.setItem('updateLater', S.update.available); } catch {} renderUpdate(); };
+$('#upd-go').onclick = async (e) => {
+	const u = S.update;
+	if (u.action === 'link') { location.href = u.downloadUrl; return; }        // Android: the browser downloads the APK
+	if (u.action === 'page') { window.open(u.releaseUrl, '_blank'); return; }
+	if (u.action === 'install' && !u.ready && !confirm(`Download version ${u.available} (${u.size ? fmtMB(u.size) : 'a few MB'}) and restart into it? Idling stops for a moment and picks up again after the restart.`)) return;
+	e.target.disabled = true;
+	try { await api('/api/update/install', {}); } catch (err) { alert(err.message); }
+	finally { e.target.disabled = false; poll(); }
+};
+$('#upd-check').onclick = async (e) => {
+	e.target.disabled = true;
+	try { await api('/api/update/check', {}); } catch (err) { $('#upd-status').textContent = `⚠ ${err.message}`; }
+	finally { e.target.disabled = false; poll(); }
+};
+
 // ---------- main render ----------
 
 function render() {
 	const loggedIn = S.status === 'loggedIn' || S.status === 'reconnecting';   // reconnecting: keep the app on screen
 	$('#login').classList.toggle('hidden', loggedIn);
-	$('#app').classList.toggle('hidden', !loggedIn);
+	$('#viewtabs').classList.toggle('hidden', !loggedIn);
+	$('#app').classList.toggle('hidden', !loggedIn || view !== 'idler');
+	$('#tools').classList.toggle('hidden', !loggedIn || view !== 'tools');
+	const onTools = (S.tools || []).filter((t) => t.enabled).length;
+	$('#tools-badge').classList.toggle('hidden', !onTools);
+	$('#tools-badge').textContent = onTools;
+	$('#tools-badge').title = `${onTools} tool(s) on`;
 	$('#logout').classList.toggle('hidden', !loggedIn);
 	$('#open-settings').classList.toggle('hidden', !loggedIn);
 	$('#version').textContent = S.version ? `v${S.version}` : '';
@@ -1052,6 +1596,9 @@ function render() {
 		return;
 	}
 
+	if (view === 'tools') renderTools();
+	renderUpdate();
+
 	if (!settingsLoaded) {
 		settingsLoaded = true;
 		queue = queueFromConfig(S.config.games);
@@ -1088,12 +1635,21 @@ function render() {
 	}
 }
 
+// The page asks for the library only when it changed, and doesn't poll at all while hidden
+// (minimized, in the tray, or another app in front on a phone); everything keeps running in the app.
 async function poll() {
-	try { S = await api('/api/state'); render(); }
+	if (document.hidden && S) return;
+	try {
+		const next = await api(`/api/state?lib=${S?.libraryVersion ?? ''}`);
+		if (!next.library) next.library = S?.library || [];
+		S = next;
+		render();
+	}
 	catch { $('#status-pill').textContent = 'GUI server not running'; $('#status-pill').className = 'pill'; }
 }
 poll();
 setInterval(poll, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 </script>
 </body>
 </html>
