@@ -67,6 +67,8 @@ const config = Object.assign({
 	showUsername: true,
 	minimizeToTray: true,  // desktop app only
 	freeMemoryInTray: true, // desktop app only: close the window fully while it's in the tray
+	devMode: false,        // Developer tab: live log + system info
+	devVerbose: false,     // ...including every Steam message (memory only)
 	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
 	autoUpdate: true,      // Windows installer / AppImage: download it in the background, install on restart
 	preventSleep: true,    // desktop app only
@@ -127,7 +129,7 @@ const clockTime = (d = new Date()) => [d.getHours(), d.getMinutes(), d.getSecond
 function log(msg, notify = false) {
 	const line = `[${clockTime()}] ${msg}`;
 	console.log(line);
-	debugLog.write('info', msg);
+	debugLog.write(/^⚠|couldn't|failed|error/i.test(msg) ? 'warn' : 'info', msg);
 	logLines.push(line);
 	if (logLines.length > 200) logLines.shift();
 	events.emit('log', msg);
@@ -209,6 +211,11 @@ client.on('loggedOn', async () => {
 });
 
 client.on('accountInfo', (name, country) => { app.account = name; app.country = country || app.country || null; });
+
+// Developer mode → "Detailed Steam traffic": every message, kept in memory only (it's a lot)
+client.on('debug-verbose', (msg) => {
+	if (config.devMode && config.devVerbose) debugLog.write('steam-verbose', msg, debugLog.write.MEMORY_ONLY);
+});
 
 client.on('debug', (msg) => {
 	debugLog.write('steam', msg);   // includes "Sending message: ClientGamesPlayed..." / "Handled message: ..."
@@ -393,7 +400,11 @@ async function refreshLibrary() {
 	const { apps } = await client.getUserOwnedApps(client.steamID, { includePlayedFreeGames: true, includeFreeSub: true });
 	libraryVersion++;
 	app.library = apps
-		.map((a) => ({ appid: a.appid, name: a.name, minutes: a.playtime_forever, icon: a.img_icon_url || null }))
+		.map((a) => ({
+			appid: a.appid, name: a.name, minutes: a.playtime_forever, icon: a.img_icon_url || null,
+			recent: a.playtime_2weeks || 0,                                         // minutes in the last 2 weeks
+			lastPlayed: a.rtime_last_played ? a.rtime_last_played * 1000 : null,
+		}))
 		.sort((a, b) => b.minutes - a.minutes);
 	if (session) {
 		for (const g of session.games) {
@@ -779,6 +790,7 @@ const tools = createTools({
 		isLoggedIn: () => app.status === 'loggedIn',
 		accountId: () => client.steamID?.accountid ?? null,
 		steamID64: () => client.steamID?.getSteamID64() || null,
+		dataDir: DATA_DIR,
 		country: () => app.country || null,
 		web: () => (webCookies ? { sessionID: webSessionID, cookies: webCookies } : null),
 		gameName: (appid) => app.library.find((a) => a.appid === appid)?.name || `App ${appid}`,
@@ -907,7 +919,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
@@ -1150,6 +1162,38 @@ const routes = {
 
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
+	// Developer view: the in-memory log since `after`, and what the app is doing right now
+	'GET /api/dev/log': (q) => debugLog.entries(parseInt(q.after, 10) || 0, 1500),
+	'GET /api/dev/info': () => {
+		const mem = process.memoryUsage();
+		const mb = (b) => Math.round(b / 104857.6) / 10;
+		return {
+			version: VERSION,
+			platform: `${process.platform} ${process.arch}`,
+			runtime: { node: process.versions.node, electron: process.versions.electron || null, v8: process.versions.v8 },
+			mode: process.env.IDLER_DESKTOP === '1' ? 'desktop' : MOBILE ? 'android' : 'web/cli',
+			pid: process.pid,
+			uptimeMin: Math.round(process.uptime() / 60),
+			memoryMB: { rss: mb(mem.rss), heapUsed: mb(mem.heapUsed), heapTotal: mb(mem.heapTotal), external: mb(mem.external) },
+			dataDir: DATA_DIR,
+			logsDir: debugLog.dir,
+			logFileKB: Math.round(debugLog.fileSize() / 1024),
+			steam: {
+				status: app.status, steamID: client.steamID ? client.steamID.getSteamID64() : null, country: app.country || null,
+				cellID: client.cellID || null, webSession: !!webCookies, webSessionAt: diag.webSessionAt,
+				playing: app.playing || null, libraryGames: app.library.length, libraryVersion,
+			},
+			idling: session ? {
+				kind: session.kind, method: config.idleMethod, paused: session.paused, blocked: session.blocked, disconnected: session.disconnected,
+				active: session.active.map((g) => g.appid), games: session.games.length, idledMin: Math.round(session.idledMs / 60000), lastSent: session.lastSent,
+			} : null,
+			steamAppHelpers: STEAM_APP_SUPPORTED ? steamApp.status() : null,
+			tools: tools.snapshot().map((t) => ({ id: t.id, enabled: t.enabled, busy: !!t.busy, error: t.error || null })),
+			update: (({ notes, ...u }) => u)(updater.snapshot()),
+			config: { ...config, password: undefined, username: config.username ? '(set)' : '' },
+		};
+	},
+
 	'POST /api/update/check': () => updater.check(),
 	'POST /api/update/download': async () => { await updater.download(); },
 	'POST /api/update/install': () => updater.install(),
@@ -1234,11 +1278,16 @@ const server = http.createServer(async (req, res) => {
 		raw += chunk;
 		if (raw.length > 1e6) { res.writeHead(413); return res.end(); }
 	}
-	if (req.method === 'POST') debugLog.write('api', req.method, url);   // never the body (it can hold a password)
+	const started = Date.now();
+	// every request except the page's 1-second state poll, with how long it took (never the body: it can hold a password)
+	const quiet = url === '/api/state' || url === '/api/dev/log' || url === '/api/dev/info';
+	res.on('finish', () => { if (!quiet) debugLog.write('api', `${req.method} ${url} → ${res.statusCode} in ${Date.now() - started} ms`); });
 	try {
 		const result = await handler(req.method === 'GET' ? Object.fromEntries(new URLSearchParams(qs)) : raw ? JSON.parse(raw) : {});
 		if (result?.raw) {
-			res.writeHead(200, { 'Content-Type': result.type, 'Content-Disposition': `attachment; filename="${result.filename}"`, 'Cache-Control': 'no-store' });
+			const headers = { 'Content-Type': result.type, 'Cache-Control': result.cache || 'no-store' };
+			if (result.filename) headers['Content-Disposition'] = `attachment; filename="${result.filename}"`;
+			res.writeHead(200, headers);
 			return res.end(result.body);
 		}
 		res.writeHead(200, { 'Content-Type': 'application/json' });

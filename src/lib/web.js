@@ -16,17 +16,28 @@ function cookieHeader(cookies, host) {
 	return [...out.values()].join('; ');
 }
 
+// Follows redirects within Steam's sites (e.g. /profiles/<id> -> /id/<name>) with the cookies;
+// a redirect to a login page means the web session has expired.
 async function webRequest(web, url, { method = 'GET', form = null, json = true } = {}) {
 	if (!web) throw new Error('No Steam web session yet. Try again in a minute.');
-	const host = new URL(url).hostname;
-	const headers = { Cookie: cookieHeader(web.cookies, host), 'User-Agent': 'Mozilla/5.0 steam-master-idler' };
-	let body;
-	if (form) {
-		headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
-		body = new URLSearchParams({ ...form }).toString();
+	let res;
+	let host;
+	for (let hop = 0; ; hop++) {
+		host = new URL(url).hostname;
+		const headers = { Cookie: cookieHeader(web.cookies, host), 'User-Agent': 'Mozilla/5.0 steam-master-idler' };
+		let body;
+		if (form) {
+			headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+			body = new URLSearchParams({ ...form }).toString();
+		}
+		res = await fetch(url, { method, headers, body, redirect: 'manual' });
+		if (res.status < 300 || res.status >= 400) break;
+		const next = new URL(res.headers.get('location') || '', url);
+		if (hop >= 4 || /login/i.test(next.pathname) || !/(^|\.)(steamcommunity\.com|steampowered\.com)$/.test(next.hostname)) {
+			throw new Error('Steam asked to sign in again (web session expired).');
+		}
+		url = next.toString();
 	}
-	const res = await fetch(url, { method, headers, body, redirect: 'manual' });
-	if (res.status >= 300 && res.status < 400) throw new Error('Steam asked to sign in again (web session expired).');
 	const text = await res.text();
 	if (!res.ok) throw new Error(`${host} answered HTTP ${res.status}`);
 	if (!json) return text;

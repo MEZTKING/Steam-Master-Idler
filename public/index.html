@@ -305,6 +305,74 @@
 	#update-banner .msg { flex: 1; min-width: 180px; }
 	#update-banner progress { width: 120px; accent-color: var(--accent); }
 	#update-notes { white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 200px; overflow-y: auto; width: 100%; margin: 4px 0 0; }
+	/* older screenshots picker */
+	dialog.big { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 0;
+		width: min(1100px, calc(100vw - 24px)); height: min(860px, calc(100vh - 24px)); }
+	dialog.big[open] { display: flex; flex-direction: column; }
+	dialog.big::backdrop { background: rgba(0, 0, 0, .6); }
+	dialog.big > h2 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; font-size: 16px; border-bottom: 1px solid var(--border); }
+	dialog.big > h2 span { flex: 1; }
+	.pk-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+	.pk-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
+	.pk-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--border); }
+	.pk-game > h3 { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 14px 0 8px; position: sticky; top: 0; background: var(--panel); padding: 6px 0; z-index: 1; }
+	.pk-game > h3 .icon { width: 24px; height: 24px; border-radius: 4px; }
+	.pk-game > h3 input, .pk-shot input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+	.pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+	.pk-shot { position: relative; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: pointer; }
+	.pk-shot.on { border-color: var(--accent); }
+	.pk-shot img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+	.pk-shot input { position: absolute; top: 6px; left: 6px; }
+	.pk-shot .when { font-size: 11px; color: var(--muted); padding: 4px 6px; }
+	.pk-shot .zoom { position: absolute; top: 4px; right: 4px; padding: 1px 6px; font-size: 12px; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 5px; }
+	#pk-preview { position: fixed; inset: 0; background: rgba(0, 0, 0, .85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 10; padding: 16px; }
+	#pk-preview img { max-width: 100%; max-height: calc(100% - 60px); object-fit: contain; border-radius: 6px; }
+	#pk-preview .row2 { display: flex; gap: 8px; align-items: center; color: #fff; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+	@media (max-width: 560px) { .pk-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
+	/* new tools */
+	.tool-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+	.tool-tabs button { padding: 4px 12px; font-size: 13px; }
+	.tool-tabs button.active { border-color: var(--accent); color: var(--accent-2); }
+	.mini-bar { width: 90px; height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+	.mini-bar > div { height: 100%; background: var(--accent); }
+	.mini-bar.full > div { background: var(--good); }
+	.chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 12px 16px 4px; }
+	.chart div { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+	.chart div:hover { background: var(--accent-2); }
+	.chart-x { display: flex; justify-content: space-between; padding: 0 16px 10px; font-size: 11px; color: var(--muted); }
+	.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 10px 16px; }
+	.pick-grid button { padding: 0; overflow: hidden; text-align: left; border-width: 2px; }
+	.pick-grid button img, .pick-grid button .noimg { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+	.pick-grid button span { display: block; font-size: 11.5px; padding: 3px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.pick-grid button.in { border-color: var(--accent); }
+	.pick-grid button.eq span::before { content: "● "; color: var(--good); }
+	.pick-grid button.out { opacity: .45; }
+	.chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+	.chips span { background: var(--panel-2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; }
+	.chips b { font-weight: 600; }
+	.list-more { padding: 8px 16px; }
+	/* developer view */
+	#dev { display: grid; gap: 20px; }
+	.dev-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 18px; padding: 12px 16px; font-size: 12.5px; }
+	.dev-info div { display: flex; gap: 8px; min-width: 0; padding: 3px 0; border-bottom: 1px dashed var(--border); }
+	.dev-info b { color: var(--muted); font-weight: 500; flex-shrink: 0; }
+	.dev-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+	.dev-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+	.dev-bar input[type=search] { width: 200px; }
+	.dev-cats { display: flex; gap: 4px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+	.dev-cats button { padding: 1px 8px; font-size: 11.5px; border-radius: 99px; }
+	.dev-cats button.off { opacity: .4; text-decoration: line-through; }
+	#dev-log { height: 60vh; overflow: auto; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 6px 0; }
+	#dev-log .l { display: grid; grid-template-columns: 100px 90px 1fr; gap: 8px; padding: 0 16px; white-space: pre-wrap; word-break: break-word; }
+	#dev-log .l:hover { background: var(--panel-2); }
+	#dev-log .l .c { color: var(--accent-2); overflow: hidden; text-overflow: ellipsis; }
+	#dev-log .l .t { color: var(--muted); white-space: nowrap; }
+	#dev-log .l.error { color: var(--bad); }
+	#dev-log .l.warn { color: var(--warn); }
+	#dev-log .l.debug .m { color: var(--muted); }
+	#dev-log .l.trace .m { color: var(--muted); opacity: .7; }
+	#dev-log mark { background: color-mix(in srgb, var(--warn) 45%, transparent); color: inherit; }
+	@media (max-width: 560px) { #dev-log .l { grid-template-columns: 1fr; gap: 0; padding: 4px 12px; border-bottom: 1px solid var(--border); } }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -332,6 +400,7 @@
 	<nav class="viewtabs hidden" id="viewtabs">
 		<button data-view="idler" class="active">🎮 Idler</button>
 		<button data-view="tools">🧰 Tools<span class="badge hidden" id="tools-badge"></span></button>
+		<button data-view="dev" id="dev-tab" class="hidden">🛠 Developer</button>
 	</nav>
 
 	<!-- login -->
@@ -488,6 +557,35 @@
 		</div>
 	</section>
 
+	<!-- developer view: live log + what the app is doing (Settings → Developer mode) -->
+	<section id="dev" class="hidden">
+		<div class="panel">
+			<h2>System<span class="spacer"></span><button class="small" id="dev-copy-info">Copy</button></h2>
+			<div class="dev-info" id="dev-info"><div><b>Loading…</b></div></div>
+		</div>
+		<div class="panel">
+			<h2>Live log<span class="spacer"></span><span class="h2-note" id="dev-count"></span></h2>
+			<div class="dev-bar">
+				<select id="dev-level">
+					<option value="trace">Everything</option>
+					<option value="debug" selected>Debug and up</option>
+					<option value="info">Info and up</option>
+					<option value="warn">Warnings and errors</option>
+					<option value="error">Errors only</option>
+				</select>
+				<input type="search" id="dev-search" placeholder="Search… (regex ok)">
+				<label class="check-inline"><input type="checkbox" id="dev-follow" checked> Follow</label>
+				<label class="check-inline"><input type="checkbox" id="dev-pause"> Pause</label>
+				<span class="spacer" style="flex:1"></span>
+				<button class="small" id="dev-clear" title="Hide what's shown so far (the log itself is kept)">Clear view</button>
+				<button class="small" id="dev-copy">Copy shown</button>
+				<a class="small btn" href="/api/debug-report" download>Save debug report</a>
+			</div>
+			<div class="dev-cats" id="dev-cats"></div>
+			<div id="dev-log"></div>
+		</div>
+	</section>
+
 	<!-- tools: extra Steam features that share the same sign-in -->
 	<section id="tools" class="hidden">
 		<div class="tools-intro muted">Extra Steam tools that use the same sign-in. Switch on only what you use: a tool that's off isn't loaded and uses no resources.</div>
@@ -587,6 +685,7 @@
 						<label>Check every
 							<select id="wl-every"><option value="1">hour</option><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">day</option></select></label>
 					</div>
+					<label class="opt"><input type="checkbox" id="wl-free"><span>Tell me when a wishlist game is free to play (free weekend) or free to keep</span></label>
 					<label class="opt"><input type="checkbox" id="wl-delist"><span>Warn me when a game may be delisted soon
 						<small>Flags wishlist games that are no longer sold, and once a day reads each game's Steam news for delisting notices ("will be removed from Steam", "last chance to buy"…). Steam has no official signal for this, so it's a best guess.</small></span></label>
 					<div class="actions"><button class="primary" id="wl-check">↻ Check now</button>
@@ -628,8 +727,145 @@
 				<div id="fg-history"></div>
 			</div>
 		</div>
+
+		<!-- 🃏 badges & boosters -->
+		<div class="panel tool" data-tool="badges">
+			<h2><span class="tool-ic">🃏</span> Badges &amp; boosters<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Your badge progress per game, a notification when a badge can be crafted, and the booster packs you can make with gems. Read-only: it never crafts or spends gems.</div>
+			<div class="tool-body hidden">
+				<div id="bd-status" class="steam-check"></div>
+				<div class="panel-body">
+					<label class="opt"><input type="checkbox" id="bd-notify"><span>Notify me when a badge can be crafted</span></label>
+					<label class="opt"><input type="checkbox" id="bd-boosters"><span>Check the Booster Pack Creator too</span></label>
+					<div class="actions"><button class="primary" id="bd-check">↻ Check now</button>
+						<a class="btn big" href="https://steamcommunity.com/my/badges/" target="_blank" rel="noopener">My badges ↗</a>
+						<span class="error" id="bd-error"></span></div>
+				</div>
+				<div class="tool-tabs" id="bd-tabs"><button data-tab="badges" class="active">Badges</button><button data-tab="boosters">Boosters</button></div>
+				<div id="bd-list"></div>
+			</div>
+		</div>
+
+		<!-- 📊 playtime reports -->
+		<div class="panel tool" data-tool="playtime">
+			<h2><span class="tool-ic">📊</span> Playtime reports<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">A day-by-day history of what you played (idled hours count too, the way Steam counts them), a weekly summary every Monday, and games from your library worth a try. The history starts when you switch it on.</div>
+			<div class="tool-body hidden">
+				<div id="pt-status" class="steam-check"></div>
+				<div class="panel-body" style="padding-bottom:0">
+					<label class="opt"><input type="checkbox" id="pt-weekly"><span>Weekly summary notification on Monday</span></label>
+				</div>
+				<div class="tool-tabs" id="pt-range"><button data-days="7" class="active">7 days</button><button data-days="30">30 days</button><button data-days="90">90 days</button></div>
+				<div class="chart" id="pt-chart"></div><div class="chart-x" id="pt-chart-x"></div>
+				<div id="pt-games"></div>
+				<h3 class="tool-sub">Worth a try</h3>
+				<div id="pt-suggest"></div>
+			</div>
+		</div>
+
+		<!-- 🧹 library cleanup -->
+		<div class="panel tool" data-tool="cleanup">
+			<h2><span class="tool-ic">🧹</span> Library cleanup<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Games you never played or barely touched, games you can still refund (bought in the last 14 days, played under 2 hours), and DLC you own for games you don't. Worked out when you open it; nothing runs in the background.</div>
+			<div class="tool-body hidden">
+				<div class="tool-tabs" id="cl-tabs">
+					<button data-tab="refunds" class="active">Refundable</button><button data-tab="never">Never played</button>
+					<button data-tab="barely">Barely played</button><button data-tab="forgotten">Not played in a year</button><button data-tab="dlc">Orphan DLC</button>
+				</div>
+				<div class="panel-body hidden" id="cl-barely-opt" style="padding:10px 16px"><span class="inline-num" style="font-size:13px">Barely played means under <input type="number" id="cl-barely" min="5" max="600"> minutes</span></div>
+				<div class="panel-body hidden" id="cl-dlc-opt" style="padding:10px 16px"><div class="actions" style="margin:0"><button class="primary" id="cl-scan">Scan my licenses</button><span class="muted" id="cl-scan-status" style="font-size:13px"></span></div></div>
+				<div id="cl-list"><div class="empty">Loading…</div></div>
+			</div>
+		</div>
+
+		<!-- 💰 market value -->
+		<div class="panel tool" data-tool="market">
+			<h2><span class="tool-ic">💰</span> Market value<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">What your trading cards, foils, backgrounds, emoticons and boosters are worth on the Steam Market (lowest listing). Prices are looked up slowly, about one item every few seconds, because Steam limits this; they're kept for a day. Read-only: nothing is listed or sold.</div>
+			<div class="tool-body hidden">
+				<div id="mk-status" class="steam-check"></div>
+				<div class="chips" id="mk-kinds"></div>
+				<div class="panel-body" style="padding:10px 16px"><div class="actions" style="margin:0"><button class="primary" id="mk-refresh">↻ Refresh</button>
+					<input id="mk-filter" placeholder="Filter…" style="width:160px"><span class="error" id="mk-error"></span></div></div>
+				<div id="mk-list"></div>
+			</div>
+		</div>
+
+		<!-- 💾 backups -->
+		<div class="panel tool" data-tool="backups">
+			<h2><span class="tool-ic">💾</span> Backups<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Saves your playtime (JSON + CSV) and achievements to a folder, daily or weekly, keeping the newest backups. Can also copy new screenshots there, sorted into a folder per game. Nothing is uploaded anywhere.</div>
+			<div class="tool-body hidden">
+				<div id="bk-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>Backup folder <input id="bk-folder" placeholder="In the app's data folder"></label>
+						<label>How often <select id="bk-every"><option value="daily">Every day</option><option value="weekly">Every week</option></select></label>
+						<label>Keep the newest <input type="number" id="bk-keep" min="1" max="100"></label>
+					</div>
+					<label class="opt"><input type="checkbox" id="bk-ach"><span>Achievements of games played in the last 2 weeks</span></label>
+					<label class="opt"><input type="checkbox" id="bk-allach"><span>…of every game you've played (slower: a second or so per game)</span></label>
+					<label class="opt nomobile"><input type="checkbox" id="bk-shots"><span>Copy new screenshots (kept once, in one folder per game)</span></label>
+					<label class="opt"><input type="checkbox" id="bk-notify"><span>Notify me after each backup</span></label>
+					<div class="actions"><button class="primary" id="bk-run">▶ Back up now</button><button id="bk-open" class="desk-only">Open folder</button><span class="error" id="bk-error"></span></div>
+				</div>
+				<div id="bk-history"></div>
+			</div>
+		</div>
+
+		<!-- 🖼 profile rotator -->
+		<div class="panel tool" data-tool="profile">
+			<h2><span class="tool-ic">🖼</span> Profile rotator<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Changes your profile background, mini-profile background, avatar frame or animated avatar on a schedule, from the items you own. Click items below to rotate only through those.</div>
+			<div class="tool-body hidden">
+				<div id="pf-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>Change every <select id="pf-every"><option value="1">hour</option><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">day</option><option value="48">2 days</option><option value="168">week</option></select></label>
+						<label>Order <select id="pf-order"><option value="random">Random</option><option value="sequence">In order</option></select></label>
+					</div>
+					<div id="pf-slots"></div>
+					<label class="opt"><input type="checkbox" id="pf-notify"><span>Notify me when it changes</span></label>
+					<div class="actions"><button class="primary" id="pf-rotate">⟳ Change now</button><button id="pf-load">Show my items</button><span class="error" id="pf-error"></span></div>
+				</div>
+				<div id="pf-items"></div>
+			</div>
+		</div>
 	</section>
 </main>
+
+<dialog id="ss-picker" class="big">
+	<h2><span>Choose older screenshots to upload</span><button class="small" id="pk-close" title="Close">✕</button></h2>
+	<div class="pk-bar">
+		<select id="pk-game"><option value="">All games</option></select>
+		<button class="small" id="pk-all">Select all</button>
+		<button class="small" id="pk-none">Select none</button>
+		<span class="spacer" style="flex:1"></span>
+		<span class="muted">Click a picture to see it full size.</span>
+	</div>
+	<div class="pk-body" id="pk-body"><div class="empty">Loading your screenshots…</div></div>
+	<div class="pk-foot">
+		<span id="pk-count" class="muted">Nothing selected</span>
+		<span class="spacer" style="flex:1"></span>
+		<span class="error" id="pk-error"></span>
+		<button id="pk-cancel">Cancel</button>
+		<button class="primary" id="pk-upload" disabled>Upload</button>
+	</div>
+	<div id="pk-preview" class="hidden">
+		<img id="pk-preview-img" alt="">
+		<div class="row2"><span id="pk-preview-name"></span>
+			<button class="small" id="pk-prev">‹ Previous</button>
+			<button class="small primary" id="pk-preview-toggle">Select</button>
+			<button class="small" id="pk-next">Next ›</button>
+			<button class="small" id="pk-preview-close">Close</button></div>
+	</div>
+</dialog>
 
 <dialog id="settings">
 	<h2><span>Settings</span><button class="small" id="close-settings" title="Close">✕</button></h2>
@@ -692,6 +928,10 @@
 		<fieldset>
 			<legend>Troubleshooting</legend>
 			<div class="muted" style="font-size:12px">Steam Master Idler <span id="diag-version"></span></div>
+			<label class="opt"><input type="checkbox" data-k="devMode"><span>Developer mode
+				<small>Adds a 🛠 Developer tab: a live, searchable log of everything the app and Steam do, plus system info (memory, versions, what's running).</small></span></label>
+			<label class="opt" id="opt-devverbose"><input type="checkbox" data-k="devVerbose"><span>Detailed Steam traffic
+				<small>Also log every message to and from Steam (kept in memory only, not in the log file). Uses a little more CPU; turn it on while debugging.</small></span></label>
 			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
 				<a class="small btn" id="save-report" href="/api/debug-report" download>Save debug report</a>
 				<button class="small" id="copy-diag">Copy diagnostics</button>
@@ -846,6 +1086,7 @@ function fillSettings() {
 	$('#diag-version').textContent = S.version ? `v${S.version}` : '';
 	document.querySelectorAll('#settings [data-n]').forEach((el) => { el.value = c[el.dataset.n]; });
 	$('#opt-takeover').classList.toggle('hidden', c.idleMethod === 'steamApp');   // only for the idler's own login
+	$('#opt-devverbose').classList.toggle('hidden', !c.devMode);
 	document.querySelectorAll('#settings .desk').forEach((el) => el.classList.toggle('hidden', !S.desktop));
 	document.querySelectorAll('#settings .nomobile').forEach((el) => el.classList.toggle('hidden', !!S.mobile));
 	$('#method-set').classList.toggle('hidden', !!S.mobile);   // phones can only use the idler's own login
@@ -1217,7 +1458,7 @@ $('#logout').onclick = async () => {
 // ---------- idler / tools views ----------
 
 let view = 'idler';
-try { view = localStorage.getItem('view') === 'tools' ? 'tools' : 'idler'; } catch {}
+try { view = ['tools', 'dev'].includes(localStorage.getItem('view')) ? localStorage.getItem('view') : 'idler'; } catch {}
 function showView(v) {
 	view = v;
 	try { localStorage.setItem('view', v); } catch {}
@@ -1266,7 +1507,10 @@ function renderTools() {
 		const un = p.querySelector('.tool-unavailable');
 		if (un) { un.classList.toggle('hidden', t.available); un.textContent = t.reason || ''; }
 		p.querySelector('.tool-body').classList.toggle('hidden', !t.enabled);
-		if (t.enabled) TOOL_RENDER[t.id]?.(t);
+		if (t.enabled) Promise.resolve(TOOL_RENDER[t.id]?.(t)).catch((err) => {
+			const errEl = p.querySelector('.error') || p.querySelector('.steam-check');
+			if (errEl) errEl.textContent = `⚠ ${err.message}`;
+		});
 	}
 }
 
@@ -1295,7 +1539,7 @@ TOOL_RENDER.screenshots = (t) => {
 		: '✔ Watching for new screenshots.';
 	$('#ss-upload-now').disabled = t.busy || !t.pending || S.status !== 'loggedIn';
 	$('#ss-upload-older').classList.toggle('hidden', !t.backlog);
-	$('#ss-upload-older').textContent = `Upload ${t.backlog} older screenshot${t.backlog === 1 ? '' : 's'}`;
+	$('#ss-upload-older').textContent = `Choose from ${t.backlog} older screenshot${t.backlog === 1 ? '' : 's'}…`;
 	$('#ss-upload-older').disabled = t.busy;
 	$('#ss-open').classList.toggle('hidden', !S.desktop || !t.folder);
 	$('#ss-library').classList.toggle('hidden', !t.libraryUrl);
@@ -1311,11 +1555,119 @@ $('#ss-when').onchange = (e) => act('screenshots', 'settings', { when: e.target.
 $('#ss-privacy').onchange = (e) => act('screenshots', 'settings', { privacy: e.target.value }, null, '#ss-error');
 $('#ss-steamdir').onchange = (e) => act('screenshots', 'settings', { steamDir: e.target.value }, null, '#ss-error');
 $('#ss-upload-now').onclick = (e) => act('screenshots', 'upload-now', {}, e.target, '#ss-error');
-$('#ss-upload-older').onclick = (e) => {
-	const t = tool('screenshots');
-	if (!confirm(`Upload ${t.backlog} older screenshot(s) to your Steam library as ${$('#ss-privacy').selectedOptions[0].text}? Skip this if you've uploaded them yourself before, or they'll be there twice.`)) return;
-	act('screenshots', 'upload-older', {}, e.target, '#ss-error');
+$('#ss-upload-older').onclick = () => openPicker();
+
+// ----- picker for older screenshots -----
+let pkGames = [];               // [{ appid, game, icon, shots: [{ key, name, takenAt, size }] }]
+const pkSel = new Set();        // selected keys
+const PK_PAGE = 60;             // thumbnails shown per game before "Show more"
+const pkShown = new Map();      // appid -> how many shown
+let pkPreviewKey = null;
+const imgUrl = (key, full) => `/api/tools/screenshots/image?key=${encodeURIComponent(key)}${full ? '&full=1' : ''}`;
+async function openPicker() {
+	pkSel.clear(); pkShown.clear();
+	$('#pk-error').textContent = '';
+	$('#pk-body').innerHTML = '<div class="empty">Loading your screenshots…</div>';
+	$('#ss-picker').showModal();
+	try { pkGames = (await api('/api/tools/screenshots/older')).games; }
+	catch (e) { $('#pk-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+	$('#pk-game').innerHTML = '<option value="">All games</option>' + pkGames.map((g) => `<option value="${g.appid}">${esc(g.game)} (${g.shots.length})</option>`).join('');
+	pkRender();
+}
+const pkVisibleGames = () => pkGames.filter((g) => !$('#pk-game').value || String(g.appid) === $('#pk-game').value);
+function pkRender() {
+	const games = pkVisibleGames();
+	$('#pk-body').innerHTML = !pkGames.length ? '<div class="empty">No older screenshots waiting. Everything is on Steam already.</div>'
+		: games.map((g) => {
+			const n = pkShown.get(g.appid) || PK_PAGE;
+			const sel = g.shots.filter((x) => pkSel.has(x.key)).length;
+			return `<section class="pk-game" data-app="${g.appid}">
+				<h3><input type="checkbox" data-game="${g.appid}" ${sel === g.shots.length ? 'checked' : ''} title="Select every screenshot of this game">
+					${iconHtml(g.icon || libGame(g.appid)?.icon)}<span>${esc(g.game)}</span>
+					<span class="muted" style="font-weight:400">${sel ? `${sel} of ` : ''}${g.shots.length} screenshot${g.shots.length === 1 ? '' : 's'}</span></h3>
+				<div class="pk-grid">${g.shots.slice(0, n).map((x) => `<label class="pk-shot ${pkSel.has(x.key) ? 'on' : ''}" title="${esc(x.name)}">
+					<input type="checkbox" data-key="${esc(x.key)}" ${pkSel.has(x.key) ? 'checked' : ''}>
+					<img src="${imgUrl(x.key)}" alt="" loading="lazy" data-zoom="${esc(x.key)}">
+					<button type="button" class="zoom" data-zoom="${esc(x.key)}" title="Full size">⤢</button>
+					<div class="when">${new Date(x.takenAt).toLocaleString()}</div></label>`).join('')}</div>
+				${g.shots.length > n ? `<div class="actions"><button class="small" data-more="${g.appid}">Show ${Math.min(PK_PAGE, g.shots.length - n)} more (${g.shots.length - n} hidden)</button></div>` : ''}
+			</section>`;
+		}).join('');
+	pkCount();
+}
+function pkCount() {
+	const n = pkSel.size;
+	const games = new Set([...pkSel].map((k) => k.split('/')[0])).size;
+	$('#pk-count').textContent = n ? `${n} screenshot${n === 1 ? '' : 's'} from ${games} game${games === 1 ? '' : 's'} selected` : 'Nothing selected';
+	$('#pk-upload').disabled = !n;
+	$('#pk-upload').textContent = n ? `Upload ${n} as ${$('#ss-privacy').selectedOptions[0]?.text.replace(/ \(.*/, '') || 'Private'}` : 'Upload';
+}
+function pkToggle(key, on) {
+	if (on) pkSel.add(key); else pkSel.delete(key);
+	const box = document.querySelector(`#pk-body input[data-key="${CSS.escape(key)}"]`);
+	if (box) { box.checked = on; box.closest('.pk-shot').classList.toggle('on', on); }
+	const appid = key.split('/')[0];
+	const g = pkGames.find((x) => String(x.appid) === appid);
+	const head = document.querySelector(`#pk-body input[data-game="${appid}"]`);
+	if (g && head) {
+		const sel = g.shots.filter((x) => pkSel.has(x.key)).length;
+		head.checked = sel === g.shots.length;
+		head.indeterminate = sel > 0 && sel < g.shots.length;
+		head.parentElement.querySelector('.muted').textContent = `${sel ? `${sel} of ` : ''}${g.shots.length} screenshot${g.shots.length === 1 ? '' : 's'}`;
+	}
+	pkCount();
+}
+$('#pk-body').addEventListener('click', (e) => {
+	const zoom = e.target.dataset.zoom;
+	if (zoom) { e.preventDefault(); pkPreview(zoom); return; }
+	const more = e.target.dataset.more;
+	if (more) { pkShown.set(+more, (pkShown.get(+more) || PK_PAGE) + PK_PAGE); pkRender(); }
+});
+$('#pk-body').addEventListener('change', (e) => {
+	if (e.target.dataset.key) pkToggle(e.target.dataset.key, e.target.checked);
+	if (e.target.dataset.game) {
+		const g = pkGames.find((x) => String(x.appid) === e.target.dataset.game);
+		const on = e.target.checked;   // read once: pkToggle updates this box as it goes
+		for (const x of g.shots) pkToggle(x.key, on);
+	}
+});
+$('#pk-game').onchange = pkRender;
+$('#pk-all').onclick = () => { for (const g of pkVisibleGames()) for (const x of g.shots) pkSel.add(x.key); pkRender(); };
+$('#pk-none').onclick = () => { for (const g of pkVisibleGames()) for (const x of g.shots) pkSel.delete(x.key); pkRender(); };
+const pkClose = () => { $('#pk-preview').classList.add('hidden'); $('#ss-picker').close(); };
+$('#pk-close').onclick = pkClose;
+$('#pk-cancel').onclick = pkClose;
+$('#pk-upload').onclick = async (e) => {
+	const keys = [...pkSel];
+	e.target.disabled = true;
+	try { await toolApi('screenshots', 'upload-older', { keys }); pkClose(); }
+	catch (err) { $('#pk-error').textContent = err.message; e.target.disabled = false; }
+	poll();
 };
+// full-size preview, with previous / next through what's shown
+const pkAllKeys = () => pkVisibleGames().flatMap((g) => g.shots.map((x) => x.key));
+function pkPreview(key) {
+	pkPreviewKey = key;
+	const g = pkGames.find((x) => String(x.appid) === key.split('/')[0]);
+	const shot = g?.shots.find((x) => x.key === key);
+	$('#pk-preview-img').src = imgUrl(key, true);
+	$('#pk-preview-name').textContent = `${g?.game || ''} · ${shot ? new Date(shot.takenAt).toLocaleString() : ''}`;
+	$('#pk-preview-toggle').textContent = pkSel.has(key) ? '✓ Selected' : 'Select';
+	$('#pk-preview').classList.remove('hidden');
+}
+const pkStep = (d) => { const all = pkAllKeys(); const i = all.indexOf(pkPreviewKey); if (i >= 0 && all[i + d]) pkPreview(all[i + d]); };
+$('#pk-prev').onclick = () => pkStep(-1);
+$('#pk-next').onclick = () => pkStep(1);
+$('#pk-preview-toggle').onclick = () => { pkToggle(pkPreviewKey, !pkSel.has(pkPreviewKey)); pkPreview(pkPreviewKey); };
+$('#pk-preview-close').onclick = () => $('#pk-preview').classList.add('hidden');
+$('#pk-preview').onclick = (e) => { if (e.target.id === 'pk-preview') $('#pk-preview').classList.add('hidden'); };
+$('#ss-picker').addEventListener('keydown', (e) => {
+	if ($('#pk-preview').classList.contains('hidden')) return;
+	if (e.key === 'ArrowLeft') pkStep(-1);
+	if (e.key === 'ArrowRight') pkStep(1);
+	if (e.key === ' ') { e.preventDefault(); $('#pk-preview-toggle').click(); }
+	if (e.key === 'Escape') { e.preventDefault(); $('#pk-preview').classList.add('hidden'); }
+});
 $('#ss-open').onclick = () => act('screenshots', 'open-folder', {}, null, '#ss-error');
 $('#ss-retry').onclick = () => act('screenshots', 'retry-failed', {}, null, '#ss-error');
 
@@ -1434,7 +1786,8 @@ function wlRenderList() {
 			<a class="name" href="https://store.steampowered.com/app/${i.appid}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" title="${esc(i.name)}">${esc(i.name)}</a>
 			${i.delist ? (i.delist.url ? `<a class="tag bad" href="${esc(i.delist.url)}" target="_blank" rel="noopener" title="${esc(i.delist.title || '')}">⚠ may be delisted</a>` : `<span class="tag bad" title="${esc(i.delist.title || '')}">⚠ no longer sold</span>`) : ''}
 			${i.discount ? `<span class="disc">−${i.discount}%</span>` : ''}
-			<span class="price hours">${i.free ? 'Free' : i.price ? `${i.discount && i.originalPrice ? `<s>${esc(i.originalPrice)}</s>` : ''}${esc(i.price)}` : '—'}</span>
+			${i.free === 'weekend' ? '<span class="tag on">free weekend</span>' : i.free === 'keep' ? '<span class="tag on">free to keep!</span>' : ''}
+			<span class="price hours">${i.free === 'f2p' || i.free === 'keep' ? 'Free' : i.price ? `${i.discount && i.originalPrice ? `<s>${esc(i.originalPrice)}</s>` : ''}${esc(i.price)}` : '—'}</span>
 			<input type="number" min="0" step="0.01" placeholder="My price" title="Notify me when it costs this much or less" data-wl="${i.appid}" value="${i.target != null ? (i.target / 100).toFixed(2) : ''}">
 		</div>`).join(''));
 }
@@ -1442,12 +1795,14 @@ $('#wl-filter').addEventListener('input', () => { $('#wl-list').dataset.k = ''; 
 $('#wl-list').addEventListener('change', (e) => { const id = e.target.dataset.wl; if (id) act('wishlist', 'target', { appid: +id, price: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; }); });
 $('#wl-min').onchange = (e) => act('wishlist', 'settings', { minDiscount: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; });
 $('#wl-every').onchange = (e) => act('wishlist', 'settings', { everyHours: e.target.value }, null, '#wl-error');
+$('#wl-free').onchange = (e) => act('wishlist', 'settings', { freeAlerts: e.target.checked }, null, '#wl-error');
 $('#wl-delist').onchange = (e) => act('wishlist', 'settings', { delistWatch: e.target.checked }, null, '#wl-error').then(() => { wlKey = ''; });
 $('#wl-check').onclick = (e) => act('wishlist', 'check', {}, e.target, '#wl-error').then(() => { wlKey = ''; });
 TOOL_RENDER.wishlist = (t) => {
 	setIfIdle($('#wl-min'), t.settings.minDiscount);
 	setIfIdle($('#wl-every'), t.settings.everyHours);
 	if (document.activeElement !== $('#wl-delist')) $('#wl-delist').checked = !!t.settings.delistWatch;
+	if (document.activeElement !== $('#wl-free')) $('#wl-free').checked = t.settings.freeAlerts !== false;
 	$('#wl-check').disabled = t.busy;
 	const st = $('#wl-status');
 	st.className = 'steam-check' + (t.error ? ' bad' : t.deals ? ' ok' : '');
@@ -1480,6 +1835,203 @@ $('#fg-claim').onclick = async (e) => {
 	if (r?.results && r.results.every((x) => x.ok)) $('#fg-input').value = '';
 };
 $('#fg-clear').onclick = () => act('freegames', 'clear-history', {}, null, '#fg-error');
+// shared helpers for list-y tools
+const storeLink = (appid, text) => `<a href="https://store.steampowered.com/app/${appid}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${text}</a>`;
+const daysAgo = (t) => (t ? `${Math.round((Date.now() - t) / 86400000)} days ago` : 'never');
+// a tool's bigger data, fetched only when `key` changes (one request even if asked twice meanwhile)
+function toolData(id, key, path = 'data') {
+	const p = pane(id);
+	if (p.dataset.dataKey !== key || !p._data) {
+		p.dataset.dataKey = key;
+		p._data = api(`/api/tools/${id}/${path}`).catch((err) => { p.dataset.dataKey = ''; throw err; });
+	}
+	return p._data;
+}
+const syncBox = (sel, v) => { if (document.activeElement !== $(sel)) $(sel).checked = !!v; };
+// long lists show 100 rows at a time; only redrawn when something in them changed
+function showList(el, rows, empty, step = 100) {
+	const n = +(el.dataset.n || step);
+	setHtml(el, !rows.length ? `<div class="empty">${empty}</div>`
+		: rows.slice(0, n).join('') + (rows.length > n ? `<div class="list-more"><button class="small" data-more-list>Show ${Math.min(step, rows.length - n)} more (${rows.length - n} hidden)</button></div>` : ''));
+}
+document.addEventListener('click', (e) => {
+	if (!('moreList' in e.target.dataset)) return;
+	const el = e.target.closest('[id]');
+	el.dataset.n = (+(el.dataset.n || 100)) + 100;
+	const t = el.closest('.tool')?.dataset.tool;
+	if (t) { pane(t).dataset.dataKey = ''; TOOL_RENDER[t]?.(tool(t), true); }
+});
+
+// ----- 🃏 badges -----
+let bdTab = 'badges';
+$('#bd-tabs').onclick = (e) => { if (!e.target.dataset.tab) return; bdTab = e.target.dataset.tab; document.querySelectorAll('#bd-tabs button').forEach((b) => b.classList.toggle('active', b === e.target)); pane('badges').dataset.dataKey = ''; TOOL_RENDER.badges(tool('badges')); };
+$('#bd-notify').onchange = (e) => act('badges', 'settings', { notifyCraft: e.target.checked }, null, '#bd-error');
+$('#bd-boosters').onchange = (e) => act('badges', 'settings', { boosters: e.target.checked }, null, '#bd-error');
+$('#bd-check').onclick = (e) => act('badges', 'check', {}, e.target, '#bd-error').then(() => { pane('badges').dataset.dataKey = ''; });
+TOOL_RENDER.badges = async (t) => {
+	syncBox('#bd-notify', t.settings.notifyCraft); syncBox('#bd-boosters', t.settings.boosters);
+	$('#bd-check').disabled = t.busy;
+	const st = $('#bd-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.craftable ? ' ok' : '');
+	st.textContent = t.error ? `⚠ ${t.error}` : t.busy ? 'Reading your badges…' : !t.lastCheckAt ? 'First check in a moment…'
+		: `${t.craftable ? `🎉 ${t.craftable} badge(s) ready to craft. ` : ''}${t.count} game badges · ${t.dropsLeft} card drops left${t.boostersAvailable != null ? ` · ${t.boostersAvailable} booster(s) you can make` : ''} · checked ${ago(t.lastCheckAt)}`;
+	if (!t.lastCheckAt) return;
+	const d = await toolData('badges', `${t.lastCheckAt}|${bdTab}`);
+	if (bdTab === 'badges') {
+		showList($('#bd-list'), d.badges.map((b) => `<div class="row">${iconHtml(libGame(b.appid)?.icon)}
+			<div class="name" title="${esc(b.name)}">${storeLink(b.appid, esc(b.name))}${b.foil ? ' <span class="tag">foil</span>' : ''} <span class="muted">· level ${b.level}</span></div>
+			${b.craftable ? '<span class="tag done">ready to craft</span>' : ''}
+			${b.drops ? `<span class="drops">${CARD} ${b.drops}</span>` : ''}
+			${b.total ? `<span class="hours">${b.owned}/${b.total}</span><div class="mini-bar ${b.owned >= b.total ? 'full' : ''}"><div style="width:${Math.min(100, (b.owned / b.total) * 100)}%"></div></div>` : ''}
+			<a class="small btn" href="https://steamcommunity.com/my/gamecards/${b.appid}/${b.foil ? '?border=1' : ''}" target="_blank" rel="noopener">Open</a></div>`), 'No game badges yet.');
+	} else {
+		showList($('#bd-list'), !d.boosters ? [] : d.boosters.map((b) => `<div class="row">${iconHtml(libGame(b.appid)?.icon)}
+			<div class="name">${storeLink(b.appid, esc(b.name))}</div>
+			${b.available ? '<span class="tag on">can make now</span>' : `<span class="tag">again ${esc(b.availableAt || 'later')}</span>`}
+			<span class="hours">${b.gems.toLocaleString()} gems</span></div>`), d.boosters ? 'No booster packs available for your games.' : 'Switch on "Check the Booster Pack Creator too" and check again.');
+	}
+};
+
+// ----- 📊 playtime -----
+let ptDays = 7;
+$('#pt-range').onclick = (e) => { if (!e.target.dataset.days) return; ptDays = +e.target.dataset.days; document.querySelectorAll('#pt-range button').forEach((b) => b.classList.toggle('active', b === e.target)); pane('playtime').dataset.dataKey = ''; TOOL_RENDER.playtime(tool('playtime')); };
+$('#pt-weekly').onchange = (e) => act('playtime', 'settings', { weekly: e.target.checked });
+const hm = (min) => (min >= 60 ? `${(min / 60).toFixed(1)} h` : `${Math.round(min)} min`);
+TOOL_RENDER.playtime = async (t) => {
+	syncBox('#pt-weekly', t.settings.weekly);
+	$('#pt-status').className = 'steam-check' + (t.lastSyncAt ? ' ok' : '');
+	$('#pt-status').textContent = !t.lastSyncAt ? 'Taking the first reading of your playtime…'
+		: `This week: ${hm(t.week)}${t.top.length ? ` (most: ${t.top.map((g) => g.name).join(', ')})` : ''} · today: ${hm(t.today)} · history since ${t.since || 'today'}`;
+	const d = await toolData('playtime', `${t.lastSyncAt}|${ptDays}`, `data?days=${ptDays}`);
+	const max = Math.max(1, ...d.series.map((x) => x.minutes));
+	setHtml($('#pt-chart'), d.series.map((x) => `<div style="height:${(x.minutes / max) * 100}%" title="${x.day}: ${hm(x.minutes)}"></div>`).join(''));
+	setHtml($('#pt-chart-x'), `<span>${d.series[0]?.day || ''}</span><span>${hm(d.total)} in ${d.days} days</span><span>today</span>`);
+	showList($('#pt-games'), d.games.map((g) => `<div class="row">${iconHtml(libGame(g.appid)?.icon)}<div class="name">${esc(g.name)}</div>
+		<div class="mini-bar"><div style="width:${(g.minutes / (d.games[0]?.minutes || 1)) * 100}%"></div></div><span class="hours">${hm(g.minutes)}</span></div>`), 'Nothing played in this period (yet).', 20);
+	const pickRow = (g, sub) => `<div class="row">${iconHtml(libGame(g.appid)?.icon)}<div class="name">${storeLink(g.appid, esc(g.name))} <span class="muted">· ${sub}</span></div>
+		<a class="small btn" href="steam://run/${g.appid}">▶ Play</a></div>`;
+	setHtml($('#pt-suggest'), [
+		...d.never.picks.map((g) => pickRow(g, 'never played')),
+		...d.forgotten.picks.map((g) => pickRow(g, `${hm(g.minutes)}, last ${daysAgo(g.lastPlayed)}`)),
+	].join('') || '<div class="empty">Nothing to suggest — you play everything you own!</div>');
+};
+
+// ----- 🧹 cleanup -----
+let clTab = 'refunds';
+$('#cl-tabs').onclick = (e) => { if (!e.target.dataset.tab) return; clTab = e.target.dataset.tab; $('#cl-list').dataset.n = ''; document.querySelectorAll('#cl-tabs button').forEach((b) => b.classList.toggle('active', b === e.target)); TOOL_RENDER.cleanup(tool('cleanup'), true); };
+$('#cl-barely').onchange = (e) => act('cleanup', 'settings', { barelyMinutes: e.target.value }).then(() => { pane('cleanup').dataset.dataKey = ''; });
+$('#cl-scan').onclick = (e) => act('cleanup', 'scan-dlc', {}, e.target);
+
+TOOL_RENDER.cleanup = async (t, force) => {
+	$('#cl-barely-opt').classList.toggle('hidden', clTab !== 'barely');
+	$('#cl-dlc-opt').classList.toggle('hidden', clTab !== 'dlc');
+	setIfIdle($('#cl-barely'), t.settings.barelyMinutes);
+	const scan = t.dlcScan;
+	$('#cl-scan').disabled = !!scan?.running;
+	$('#cl-scan-status').textContent = scan?.running ? `Scanning… ${scan.done} of ${scan.total}` : scan?.error ? `⚠ ${scan.error}` : scan?.at ? `Scanned ${ago(scan.at)}: ${scan.found} found.` : 'Looks at every license on your account; takes a minute for big libraries.';
+	// refresh at most every 2 minutes (the refund check asks Steam about recent purchases)
+	const key = `${Math.floor(Date.now() / 120000)}|${scan?.at || ''}|${S.libraryVersion}`;
+	const d = await toolData('cleanup', key);
+
+	const gameRow = (g, sub) => `<div class="row">${iconHtml(libGame(g.appid)?.icon)}<div class="name">${storeLink(g.appid, esc(g.name))} <span class="muted">· ${sub}</span></div>
+		<a class="small btn" href="steam://run/${g.appid}">▶ Play</a></div>`;
+	const el = $('#cl-list');
+	if (clTab === 'refunds') {
+		showList(el, d.refunds.map((r) => `<div class="row">${iconHtml(libGame(r.appid)?.icon)}<div class="name">${storeLink(r.appid, esc(r.name))} <span class="muted">· played ${hm(r.minutes)}, bought ${new Date(r.boughtAt).toLocaleDateString()}</span></div>
+			${r.ok ? `<span class="tag on">${Math.max(0, Math.ceil((r.until - Date.now()) / 86400000))} days left</span><a class="small btn" href="https://help.steampowered.com/en/wizard/HelpWithGame/?appid=${r.appid}" target="_blank" rel="noopener">Request refund ↗</a>`
+				: '<span class="tag bad">over 2 hours</span>'}</div>`), d.refundError ? `⚠ ${esc(d.refundError)}` : 'Nothing bought in the last 14 days that Steam would refund.');
+	} else if (clTab === 'never') showList(el, d.never.map((g) => gameRow(g, 'never played')), 'You have played every game you own. 🎉');
+	else if (clTab === 'barely') showList(el, d.barely.map((g) => gameRow(g, `${hm(g.minutes)} played`)), `No games played less than ${d.barelyMinutes} minutes.`);
+	else if (clTab === 'forgotten') showList(el, d.forgotten.map((g) => gameRow(g, `${hm(g.minutes)}, last played ${new Date(g.lastPlayed).toLocaleDateString()}`)), 'Nothing left untouched for a year.');
+	else showList(el, (d.dlc || []).map((x) => `<div class="row"><div class="icon"></div><div class="name">${esc(x.name)} <span class="muted">· DLC for ${storeLink(x.parent, esc(x.parentName || `App ${x.parent}`))}</span></div>
+		<a class="small btn" href="https://store.steampowered.com/app/${x.parent}/" target="_blank" rel="noopener">Base game ↗</a></div>`), d.dlc ? 'No DLC without its game. 🎉' : 'Press "Scan my licenses" to look.');
+};
+
+// ----- 💰 market -----
+$('#mk-refresh').onclick = (e) => act('market', 'refresh', {}, e.target, '#mk-error');
+$('#mk-filter').addEventListener('input', () => { pane('market').dataset.dataKey = ''; TOOL_RENDER.market(tool('market')); });
+TOOL_RENDER.market = async (t) => {
+	$('#mk-refresh').disabled = t.busy;
+	const st = $('#mk-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.total ? ' ok' : '');
+	st.textContent = t.error ? `⚠ ${t.error}` : t.pricing ? `Looking up prices… ${t.pricing.done} of ${t.pricing.total} (one every few seconds) · so far ${t.totalText}`
+		: t.busy ? 'Reading your inventory…' : !t.lastScanAt ? 'First look at your inventory in a few minutes, or press Refresh.'
+		: `Worth about ${t.totalText} · ${t.priced} of ${t.marketable} kinds of item priced · checked ${ago(t.lastScanAt)}`;
+	if (!t.lastScanAt) return;
+	const d = await toolData('market', `${t.lastScanAt}|${t.priced}|${$('#mk-filter').value}`);
+	setHtml($('#mk-kinds'), d.byKind.length ? `<span>Total <b>${esc(d.totalText)}</b></span><span>After Steam's fees ≈ <b>${esc(d.afterFeesText)}</b></span>` + d.byKind.map((k) => `<span>${esc(k.kind)} <b>${esc(k.text)}</b></span>`).join('') : '');
+	const q = $('#mk-filter').value.trim().toLowerCase();
+	showList($('#mk-list'), d.items.filter((i) => !q || i.name.toLowerCase().includes(q) || i.game.toLowerCase().includes(q) || i.kind.toLowerCase().includes(q)).map((i) => `<div class="row">
+		${i.icon ? `<img class="icon" src="${esc(i.icon)}" alt="" loading="lazy">` : '<div class="icon"></div>'}
+		<div class="name" title="${esc(i.name)}">${i.marketUrl ? `<a href="${esc(i.marketUrl)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(i.name)}</a>` : esc(i.name)} <span class="muted">· ${esc(i.kind)}${i.game ? ` · ${esc(i.game)}` : ''}</span></div>
+		${i.count > 1 ? `<span class="tag">×${i.count.toLocaleString()}</span>` : ''}
+		<span class="hours">${!i.marketUrl ? 'not marketable' : i.price ? `${esc(i.price)}${i.count > 1 ? ` · ${esc(i.value)}` : ''}` : 'price…'}</span></div>`), 'Your community inventory is empty.');
+};
+
+// ----- 💾 backups -----
+$('#bk-folder').onchange = (e) => act('backups', 'settings', { folder: e.target.value }, null, '#bk-error');
+$('#bk-every').onchange = (e) => act('backups', 'settings', { every: e.target.value }, null, '#bk-error');
+$('#bk-keep').onchange = (e) => act('backups', 'settings', { keep: e.target.value }, null, '#bk-error');
+for (const [sel, k] of [['#bk-ach', 'achievements'], ['#bk-allach', 'allAchievements'], ['#bk-shots', 'screenshots'], ['#bk-notify', 'notify']]) $(sel).onchange = (e) => act('backups', 'settings', { [k]: e.target.checked }, null, '#bk-error');
+$('#bk-run').onclick = (e) => act('backups', 'run', {}, e.target, '#bk-error');
+$('#bk-open').onclick = () => act('backups', 'open-folder', {}, null, '#bk-error');
+TOOL_RENDER.backups = (t) => {
+	const c = t.settings;
+	setIfIdle($('#bk-folder'), c.folder); $('#bk-folder').placeholder = t.folder;
+	setIfIdle($('#bk-every'), c.every); setIfIdle($('#bk-keep'), c.keep);
+	syncBox('#bk-ach', c.achievements); syncBox('#bk-allach', c.allAchievements); syncBox('#bk-shots', c.screenshots); syncBox('#bk-notify', c.notify);
+	$('#bk-allach').disabled = !c.achievements;
+	$('#bk-run').disabled = !!t.busy;
+	$('#bk-open').classList.toggle('hidden', !S.desktop);
+	document.querySelectorAll('[data-tool="backups"] .nomobile').forEach((el) => el.classList.toggle('hidden', !!S.mobile));
+	const st = $('#bk-status');
+	st.className = 'steam-check' + (t.lastRunAt ? ' ok' : '');
+	st.textContent = t.busy ? `Backing up: ${t.busy.step}${t.busy.total ? ` ${t.busy.done} of ${t.busy.total}` : ''}…`
+		: t.lastRunAt ? `Last backup ${ago(t.lastRunAt)}, next in ${inTime(t.nextAt)} · ${t.folder}` : `No backup yet. The first one runs a few minutes after signing in. · ${t.folder}`;
+	setHtml($('#bk-history'), (t.history || []).map((h) => `<div class="row"><span class="${h.ok ? 'res-ok' : 'res-bad'}">${h.ok ? '✔' : '⚠'}</span><div class="name" style="white-space:normal">${esc(h.text)}</div><span class="hours">${ago(h.at)}</span></div>`).join(''));
+};
+
+// ----- 🖼 profile rotator -----
+const PF_SLOTS = { background: 'Profile background', mini: 'Mini-profile background', frame: 'Avatar frame', avatar: 'Animated avatar' };
+$('#pf-slots').innerHTML = Object.entries(PF_SLOTS).map(([k, l]) => `<label class="opt"><input type="checkbox" data-slot="${k}"><span>Change my ${l.toLowerCase()} <small class="muted" data-count="${k}"></small></span></label>`).join('');
+$('#pf-slots').onchange = (e) => { const k = e.target.dataset.slot; if (k) act('profile', 'settings', { slots: { [k]: e.target.checked } }, null, '#pf-error'); };
+$('#pf-every').onchange = (e) => act('profile', 'settings', { everyHours: e.target.value }, null, '#pf-error');
+$('#pf-order').onchange = (e) => act('profile', 'settings', { order: e.target.value }, null, '#pf-error');
+$('#pf-notify').onchange = (e) => act('profile', 'settings', { notify: e.target.checked }, null, '#pf-error');
+let pfItems = null;
+async function pfLoad() {
+	$('#pf-error').textContent = '';
+	try { pfItems = (await api('/api/tools/profile/items')).slots; pfRender(); } catch (e) { $('#pf-error').textContent = e.message; }
+}
+function pfRender() {
+	if (!pfItems) return;
+	const c = tool('profile').settings;
+	$('#pf-items').innerHTML = Object.entries(pfItems).filter(([k]) => c.slots?.[k]).map(([k, s]) => `<h3 class="tool-sub">${esc(s.label)} · ${s.pool.length ? `${s.pool.length} picked` : `all ${s.items.length}`}</h3>
+		<div class="pick-grid">${s.items.map((i) => `<button type="button" data-pf="${k}" data-id="${esc(i.id)}" title="${esc(i.name)}${i.game ? ` (${esc(i.game)})` : ''}"
+			class="${s.pool.includes(i.id) ? 'in' : s.pool.length ? 'out' : ''} ${s.equipped === i.id ? 'eq' : ''}">${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy">` : '<div class="noimg"></div>'}<span>${esc(i.name)}</span></button>`).join('') || '<div class="empty">You don\'t own any of these.</div>'}</div>`).join('')
+		|| '<div class="empty">Tick at least one kind of item above.</div>';
+}
+$('#pf-items').onclick = (e) => {
+	const b = e.target.closest('[data-pf]'); if (!b) return;
+	const s = pfItems[b.dataset.pf];
+	s.pool = s.pool.includes(b.dataset.id) ? s.pool.filter((x) => x !== b.dataset.id) : [...s.pool, b.dataset.id];
+	pfRender();
+	act('profile', 'pool', { slot: b.dataset.pf, ids: s.pool }, null, '#pf-error');
+};
+$('#pf-load').onclick = pfLoad;
+$('#pf-rotate').onclick = (e) => act('profile', 'rotate', {}, e.target, '#pf-error').then(() => { if (pfItems) pfLoad(); });
+TOOL_RENDER.profile = (t) => {
+	const c = t.settings;
+	setIfIdle($('#pf-every'), c.everyHours); setIfIdle($('#pf-order'), c.order); syncBox('#pf-notify', c.notify);
+	document.querySelectorAll('#pf-slots [data-slot]').forEach((el) => { if (document.activeElement !== el) el.checked = !!c.slots?.[el.dataset.slot]; });
+	if (t.counts) document.querySelectorAll('#pf-slots [data-count]').forEach((el) => { el.textContent = `(you own ${t.counts[el.dataset.count]})`; });
+	$('#pf-rotate').disabled = t.busy;
+	const st = $('#pf-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.lastAt ? ' ok' : '');
+	st.textContent = t.error ? `⚠ ${t.error}` : t.busy ? 'Changing…' : `${t.history?.[0] ? `Last change ${ago(t.history[0].at)}: ${t.history[0].text}. ` : ''}Next change in ${inTime(t.nextAt)}.`;
+	if (!pfItems && !pfLoad.started) { pfLoad.started = true; pfLoad(); }
+};
+
 TOOL_RENDER.freegames = (t) => {
 	$('#fg-claim').disabled = t.busy;
 	$('#fg-claim').textContent = t.busy ? 'Adding…' : '＋ Add to my account';
@@ -1487,6 +2039,104 @@ TOOL_RENDER.freegames = (t) => {
 	setHtml($('#fg-history'), (t.history || []).map((r) => `<div class="row"><span class="${r.ok ? 'res-ok' : 'res-bad'}">${r.ok ? '✔' : '⚠'}</span>
 		<div class="name" title="${esc(r.input)}">${esc(r.name)} <span class="muted">· ${esc(r.text)}</span></div><span class="hours">${ago(r.at)}</span></div>`).join(''));
 };
+
+// ---------- developer view ----------
+
+const DEV_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'];
+const DEV_MAX = 3000;              // entries kept in the page
+let devEntries = [];
+let devSeq = 0;
+let devClearedAt = 0;
+let devTimer = null;
+let devInfoAt = 0;
+const devHidden = new Set();       // categories switched off
+try { for (const c of JSON.parse(localStorage.getItem('devHidden') || '[]')) devHidden.add(c); } catch {}
+const devTime = (t) => { const d = new Date(t); return `${clockS(d.getHours() * 3600000 + d.getMinutes() * 60000 + d.getSeconds() * 1000)}.${String(d.getMilliseconds()).padStart(3, '0')}`; };
+
+function devActive() { return S && view === 'dev' && S.config.devMode && !document.hidden; }
+function devStartStop() {
+	if (devActive() && !devTimer) { devTimer = setInterval(devPoll, 1000); devPoll(); }
+	if (!devActive() && devTimer) { clearInterval(devTimer); devTimer = null; }
+}
+async function devPoll() {
+	if (!devActive() || $('#dev-pause').checked) return;
+	try {
+		const r = await api(`/api/dev/log?after=${devSeq}`);
+		if (r.seq < devSeq) devEntries = [];   // the app restarted
+		devSeq = r.seq;
+		if (r.entries.length) {
+			devEntries.push(...r.entries);
+			if (devEntries.length > DEV_MAX) devEntries = devEntries.slice(-DEV_MAX);
+			devRenderLog();
+		}
+		if (Date.now() - devInfoAt > 5000) { devInfoAt = Date.now(); devRenderInfo(await api('/api/dev/info')); }
+	} catch { /* shown by the status pill */ }
+}
+function devFilter() {
+	const min = DEV_LEVELS.indexOf($('#dev-level').value);
+	const q = $('#dev-search').value.trim();
+	let re = null;
+	if (q) { try { re = new RegExp(q, 'i'); } catch { re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); } }
+	return { re, list: devEntries.filter((e) => e.seq > devClearedAt && DEV_LEVELS.indexOf(e.level) >= min && !devHidden.has(e.cat) && (!re || re.test(e.msg) || re.test(e.cat))) };
+}
+function devRenderLog() {
+	// category chips (every category seen so far)
+	const cats = [...new Set(devEntries.map((e) => e.cat))].sort();
+	const chips = cats.map((c) => `<button class="${devHidden.has(c) ? 'off' : ''}" data-cat="${esc(c)}" title="Click to hide/show, double-click to show only this">${esc(c)}</button>`).join('');
+	setHtml($('#dev-cats'), chips || '<span class="muted" style="font-size:12px">No log entries yet.</span>');
+	const { re, list } = devFilter();
+	const shown = list.slice(-1500);
+	const hl = (m) => (re ? esc(m).replace(new RegExp(re.source, 'gi'), (x) => `<mark>${x}</mark>`) : esc(m));
+	const el = $('#dev-log');
+	const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+	el.innerHTML = shown.length ? shown.map((e) => `<div class="l ${e.level}"><span class="t">${devTime(e.t)}</span><span class="c">${esc(e.cat)}</span><span class="m">${hl(e.msg)}</span></div>`).join('')
+		: '<div class="empty">Nothing matches.</div>';
+	if ($('#dev-follow').checked && (atEnd || el.dataset.first !== '1')) el.scrollTop = el.scrollHeight;
+	el.dataset.first = '1';
+	$('#dev-count').textContent = `${shown.length}${list.length > shown.length ? ` of ${list.length}` : ''} shown · ${devEntries.length} kept`;
+}
+function devRenderInfo(i) {
+	const rows = [
+		['Version', `v${i.version} (${i.mode})`], ['Platform', i.platform], ['Node', i.runtime.node], ['Electron', i.runtime.electron || '—'],
+		['Uptime', `${i.uptimeMin} min`], ['PID', i.pid], ['Memory (RSS)', `${i.memoryMB.rss} MB`], ['JS heap', `${i.memoryMB.heapUsed} / ${i.memoryMB.heapTotal} MB`],
+		['Steam', i.steam.status], ['Steam ID', i.steam.steamID || '—'], ['Country / cell', `${i.steam.country || '—'} / ${i.steam.cellID ?? '—'}`],
+		['Web session', i.steam.webSession ? `yes, ${i.steam.webSessionAt ? new Date(i.steam.webSessionAt).toLocaleTimeString() : ''}` : 'no'],
+		['Playing state', i.steam.playing ? `blocked=${i.steam.playing.blocked} app=${i.steam.playing.appid}` : '—'],
+		['Library', `${i.steam.libraryGames} games (v${i.steam.libraryVersion})`],
+		['Idling', i.idling ? `${i.idling.kind} via ${i.idling.method}, ${i.idling.active.length} active of ${i.idling.games}${i.idling.paused ? ', paused' : ''}${i.idling.blocked ? ', blocked' : ''}${i.idling.disconnected ? ', disconnected' : ''}` : 'no'],
+		['Tools on', i.tools.filter((t) => t.enabled).map((t) => t.id + (t.busy ? '*' : '') + (t.error ? '!' : '')).join(', ') || 'none'],
+		['Update', i.update.available ? `v${i.update.available} available (${i.update.kind})` : `up to date (${i.update.kind})`],
+		['Log file', `${i.logFileKB} KB`], ['Data folder', i.dataDir],
+	];
+	devRenderInfo.last = i;
+	setHtml($('#dev-info'), rows.map(([k, v]) => `<div><b>${esc(k)}</b><span title="${esc(v)}">${esc(v)}</span></div>`).join(''));
+}
+$('#dev-cats').addEventListener('click', (e) => {
+	const c = e.target.dataset.cat; if (!c) return;
+	if (devHidden.has(c)) devHidden.delete(c); else devHidden.add(c);
+	try { localStorage.setItem('devHidden', JSON.stringify([...devHidden])); } catch {}
+	$('#dev-cats').dataset.k = ''; devRenderLog();
+});
+$('#dev-cats').addEventListener('dblclick', (e) => {
+	const c = e.target.dataset.cat; if (!c) return;
+	devHidden.clear();
+	for (const x of new Set(devEntries.map((x) => x.cat))) if (x !== c) devHidden.add(x);
+	try { localStorage.setItem('devHidden', JSON.stringify([...devHidden])); } catch {}
+	$('#dev-cats').dataset.k = ''; devRenderLog();
+});
+['#dev-level', '#dev-search'].forEach((sel) => $(sel).addEventListener('input', devRenderLog));
+$('#dev-pause').onchange = () => { if (!$('#dev-pause').checked) devPoll(); };
+$('#dev-clear').onclick = () => { devClearedAt = devSeq; devRenderLog(); };
+const copyText = async (text, btn) => {
+	try { await navigator.clipboard.writeText(text); btn.textContent = '✔ Copied'; }
+	catch { btn.textContent = 'Copy failed'; }
+	setTimeout(() => { btn.textContent = btn.dataset.label; }, 1500);
+};
+$('#dev-copy').dataset.label = 'Copy shown';
+$('#dev-copy-info').dataset.label = 'Copy';
+$('#dev-copy').onclick = (e) => copyText(devFilter().list.map((x) => `${new Date(x.t).toISOString()} [${x.cat}] ${x.msg}`).join('\n'), e.target);
+$('#dev-copy-info').onclick = (e) => copyText(JSON.stringify(devRenderInfo.last || {}, null, 2), e.target);
+document.addEventListener('visibilitychange', devStartStop);
 
 // ---------- updates ----------
 
@@ -1542,6 +2192,9 @@ function render() {
 	$('#viewtabs').classList.toggle('hidden', !loggedIn);
 	$('#app').classList.toggle('hidden', !loggedIn || view !== 'idler');
 	$('#tools').classList.toggle('hidden', !loggedIn || view !== 'tools');
+	$('#dev-tab').classList.toggle('hidden', !S.config.devMode);
+	if (view === 'dev' && !S.config.devMode) { showView('idler'); return; }
+	$('#dev').classList.toggle('hidden', !loggedIn || view !== 'dev');
 	const onTools = (S.tools || []).filter((t) => t.enabled).length;
 	$('#tools-badge').classList.toggle('hidden', !onTools);
 	$('#tools-badge').textContent = onTools;
@@ -1597,6 +2250,7 @@ function render() {
 	}
 
 	if (view === 'tools') renderTools();
+	devStartStop();
 	renderUpdate();
 
 	if (!settingsLoaded) {
