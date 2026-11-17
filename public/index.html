@@ -256,6 +256,22 @@
 	.inline-num input { width: 64px; padding: 2px 6px; margin: 0 4px; font-size: 12px; }
 	.check-inline { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; cursor: pointer; }
 	.check-inline input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+	/* idler / tools switch */
+	.viewtabs { display: flex; gap: 6px; margin-bottom: 16px; }
+	.viewtabs button { padding: 7px 16px; font-weight: 600; color: var(--muted); }
+	.viewtabs button.active { border-color: var(--accent); color: var(--accent-2); background: var(--panel); }
+	.viewtabs .badge { font-size: 11px; font-weight: 600; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: #fff; }
+	/* tools */
+	#tools { display: grid; gap: 20px; max-width: 860px; }
+	.tool-desc { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+	.switch { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); cursor: pointer; font-weight: 600; }
+	.switch input { width: 34px; height: 18px; appearance: none; border-radius: 99px; background: var(--border); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+	.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+	.switch input:checked { background: var(--good); }
+	.switch input:checked::after { left: 18px; }
+	.tool-sub { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); padding: 12px 16px 6px; margin: 0; font-weight: 600; }
+	.tool-note { padding: 0 16px 12px; font-size: 12px; color: var(--muted); }
+	.coming { padding: 14px 16px; color: var(--muted); font-size: 13px; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -271,6 +287,11 @@
 </header>
 
 <main>
+	<nav class="viewtabs hidden" id="viewtabs">
+		<button data-view="idler" class="active">🎮 Idler</button>
+		<button data-view="tools">🧰 Tools<span class="badge hidden" id="tools-badge"></span></button>
+	</nav>
+
 	<!-- login -->
 	<section id="login" class="panel hidden">
 		<h2>Sign in to Steam</h2>
@@ -422,6 +443,60 @@
 					<button class="linkish" id="at-reset">Reset stats</button>
 				</div>
 			</div>
+		</div>
+	</section>
+
+	<!-- tools: extra Steam features that share the same sign-in -->
+	<section id="tools" class="hidden">
+		<div class="panel" id="tool-screenshots">
+			<h2>📷 Screenshot uploader<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" id="ss-enabled"> <span id="ss-onoff">Off</span></label></h2>
+			<div class="tool-desc">Take screenshots in your games as usual (F12 in Steam). When you close the game, the new ones are uploaded to your Steam screenshot library on their own, set to <b>Private</b> unless you choose otherwise. Keep Steam Master Idler running in the tray.</div>
+			<div id="ss-unavailable" class="empty hidden"></div>
+			<div id="ss-body">
+				<div class="stats">
+					<div class="stat"><div class="v" id="ss-uploaded">0</div><div class="k">Uploaded</div></div>
+					<div class="stat"><div class="v" id="ss-waiting">0</div><div class="k">Waiting for game to close</div></div>
+					<div class="stat"><div class="v" id="ss-backlog">0</div><div class="k">Older, not uploaded</div></div>
+				</div>
+				<div id="ss-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>When to upload
+							<select id="ss-when">
+								<option value="afterClose">After I close the game</option>
+								<option value="immediately">Right after each screenshot</option>
+							</select></label>
+						<label>Visibility on Steam
+							<select id="ss-privacy">
+								<option value="private">Private (only me)</option>
+								<option value="friends">Friends only</option>
+								<option value="unlisted">Unlisted</option>
+								<option value="public">Public</option>
+							</select></label>
+						<label>Steam folder
+							<input id="ss-steamdir" placeholder="Found automatically"></label>
+					</div>
+					<div class="actions">
+						<button class="primary" id="ss-upload-now" title="Upload everything waiting now, even if the game is still running">⇪ Upload now</button>
+						<button id="ss-upload-older" class="hidden">Upload older screenshots</button>
+						<button id="ss-open" class="desk-only">Open screenshots folder</button>
+						<a class="btn" id="ss-library" target="_blank" rel="noopener" style="padding:7px 14px;font-size:14px">View on Steam ↗</a>
+						<span class="error" id="ss-error"></span>
+					</div>
+				</div>
+				<div id="ss-failed-wrap" class="hidden">
+					<h3 class="tool-sub">Couldn't upload <button class="linkish" id="ss-retry" style="margin-left:8px;text-transform:none;letter-spacing:0">Retry</button></h3>
+					<div id="ss-failed"></div>
+				</div>
+				<h3 class="tool-sub">Recent uploads</h3>
+				<div id="ss-recent"></div>
+				<div class="tool-note">Uploads go through the idler's Steam sign-in, so the idler must be signed in to the same account as your Steam app. Steam's own screenshot manager may still list these as not uploaded; don't upload them again there.</div>
+			</div>
+		</div>
+		<div class="panel">
+			<h2>More tools</h2>
+			<div class="coming">More Steam tools will show up here.</div>
 		</div>
 	</section>
 </main>
@@ -996,12 +1071,102 @@ $('#logout').onclick = async () => {
 	await api('/api/logout', {}); queue = null; settingsLoaded = false; qrAutoStarted = false; poll();
 };
 
+// ---------- idler / tools views ----------
+
+let view = 'idler';
+try { view = localStorage.getItem('view') === 'tools' ? 'tools' : 'idler'; } catch {}
+function showView(v) {
+	view = v;
+	try { localStorage.setItem('view', v); } catch {}
+	document.querySelectorAll('#viewtabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+	if (S) render();
+}
+$('#viewtabs').onclick = (e) => { const b = e.target.closest('button'); if (b) showView(b.dataset.view); };
+showView(view);
+
+const tool = (id) => S?.tools?.find((t) => t.id === id);
+const toolApi = (id, action, body = {}) => api(`/api/tools/${id}/${action}`, body);
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
+const setIfIdle = (el, v) => { if (document.activeElement !== el && el.value !== v) el.value = v; };
+
+function renderTools() {
+	const t = tool('screenshots');
+	if (!t) return;
+	$('#ss-unavailable').classList.toggle('hidden', t.available);
+	$('#ss-body').classList.toggle('hidden', !t.available);
+	$('#ss-enabled').disabled = !t.available;
+	if (!t.available) { $('#ss-unavailable').textContent = t.reason; return; }
+	const c = t.settings;
+	$('#ss-enabled').checked = c.enabled;
+	$('#ss-onoff').textContent = c.enabled ? 'On' : 'Off';
+	setIfIdle($('#ss-when'), c.when);
+	setIfIdle($('#ss-privacy'), c.privacy);
+	setIfIdle($('#ss-steamdir'), c.steamDir);
+	$('#ss-steamdir').placeholder = t.steamDir ? `Found: ${t.steamDir}` : 'Found automatically';
+	$('#ss-uploaded').textContent = t.uploaded.toLocaleString();
+	$('#ss-waiting').textContent = t.waiting;
+	$('#ss-backlog').textContent = t.backlog;
+	const st = $('#ss-status');
+	st.className = 'steam-check' + (t.error ? ' bad' : t.busy ? '' : c.enabled && t.folder ? ' ok' : '');
+	st.textContent = !c.enabled ? 'Off. Switch it on to upload new screenshots automatically.'
+		: t.error ? `⚠ ${t.error}`
+		: t.current ? `Uploading ${t.current.game} screenshot ${t.current.done + 1} of ${t.current.total}…`
+		: S.status !== 'loggedIn' ? 'Waiting for the Steam sign-in…'
+		: !t.lastScanAt ? 'Looking for your screenshots…'
+		: t.waiting && t.running.length ? `✔ Watching. ${t.waiting} screenshot(s) will upload when you close ${t.running.map((g) => g.name).join(', ')}.`
+		: t.waiting && !t.canDetectGame ? `✔ Watching. ${t.waiting} screenshot(s) will upload once you've taken none for 10 minutes (the game you play can't be seen while idling through the Steam app).`
+		: t.waiting ? `✔ Watching. ${t.waiting} screenshot(s) about to upload.`
+		: t.running.length ? `✔ Watching. Playing ${t.running.map((g) => g.name).join(', ')}; new screenshots upload when you close it.`
+		: '✔ Watching for new screenshots.';
+	$('#ss-upload-now').disabled = t.busy || !t.pending || S.status !== 'loggedIn';
+	$('#ss-upload-older').classList.toggle('hidden', !t.backlog);
+	$('#ss-upload-older').textContent = `Upload ${t.backlog} older screenshot${t.backlog === 1 ? '' : 's'}`;
+	$('#ss-upload-older').disabled = t.busy;
+	$('#ss-open').classList.toggle('hidden', !S.desktop || !t.folder);
+	$('#ss-library').classList.toggle('hidden', !t.libraryUrl);
+	if (t.libraryUrl) $('#ss-library').href = t.libraryUrl;
+	$('#ss-failed-wrap').classList.toggle('hidden', !t.failed.length);
+	const failedHtml = t.failed.map((f) => `<div class="row"><div class="name" title="${esc(f.file)}">${esc(f.game)} · <span class="muted">${esc(f.file)}</span></div><span class="hours warn-text">${esc(f.error)}</span></div>`).join('');
+	if ($('#ss-failed').dataset.k !== failedHtml) { $('#ss-failed').dataset.k = failedHtml; $('#ss-failed').innerHTML = failedHtml; }
+	const recentHtml = t.recent.length ? t.recent.map((r) => `<div class="row">
+		${iconHtml(libGame(r.appid)?.icon)}
+		<div class="name" title="${esc(r.name)}">${esc(r.game)} <span class="muted">· ${esc(r.name)}</span></div>
+		<span class="hours">${ago(r.at)}</span></div>`).join('')
+		: '<div class="empty">Nothing uploaded yet.</div>';
+	if ($('#ss-recent').dataset.k !== recentHtml) { $('#ss-recent').dataset.k = recentHtml; $('#ss-recent').innerHTML = recentHtml; }
+}
+
+async function ssAction(action, body, btn) {
+	$('#ss-error').textContent = '';
+	if (btn) btn.disabled = true;
+	try { await toolApi('screenshots', action, body); } catch (e) { $('#ss-error').textContent = e.message; }
+	finally { if (btn) btn.disabled = false; }
+	poll();
+}
+$('#ss-enabled').onchange = (e) => ssAction('settings', { enabled: e.target.checked });
+$('#ss-when').onchange = (e) => ssAction('settings', { when: e.target.value });
+$('#ss-privacy').onchange = (e) => ssAction('settings', { privacy: e.target.value });
+$('#ss-steamdir').onchange = (e) => ssAction('settings', { steamDir: e.target.value });
+$('#ss-upload-now').onclick = (e) => ssAction('upload-now', {}, e.target);
+$('#ss-upload-older').onclick = (e) => {
+	const t = tool('screenshots');
+	if (!confirm(`Upload ${t.backlog} older screenshot(s) to your Steam library as ${$('#ss-privacy').selectedOptions[0].text}? Skip this if you've uploaded them yourself before, or they'll be there twice.`)) return;
+	ssAction('upload-older', {}, e.target);
+};
+$('#ss-open').onclick = () => ssAction('open-folder', {});
+$('#ss-retry').onclick = () => ssAction('retry-failed', {});
+
 // ---------- main render ----------
 
 function render() {
 	const loggedIn = S.status === 'loggedIn' || S.status === 'reconnecting';   // reconnecting: keep the app on screen
 	$('#login').classList.toggle('hidden', loggedIn);
-	$('#app').classList.toggle('hidden', !loggedIn);
+	$('#viewtabs').classList.toggle('hidden', !loggedIn);
+	$('#app').classList.toggle('hidden', !loggedIn || view !== 'idler');
+	$('#tools').classList.toggle('hidden', !loggedIn || view !== 'tools');
+	const ssBadge = tool('screenshots');
+	$('#tools-badge').classList.toggle('hidden', !ssBadge?.busy);
+	$('#tools-badge').textContent = ssBadge?.busy ? '⇪' : '';
 	$('#logout').classList.toggle('hidden', !loggedIn);
 	$('#open-settings').classList.toggle('hidden', !loggedIn);
 	$('#version').textContent = S.version ? `v${S.version}` : '';
@@ -1051,6 +1216,8 @@ function render() {
 		if (S.error) $('#login-error').textContent = S.error;
 		return;
 	}
+
+	if (view === 'tools') renderTools();
 
 	if (!settingsLoaded) {
 		settingsLoaded = true;

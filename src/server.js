@@ -17,6 +17,7 @@ const { startPasswordLogin } = require('./lib/password-login');
 const { fetchCardDrops } = require('./lib/cards');
 const { createDebugLog } = require('./lib/debuglog');
 const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
+const { createTools } = require('./tools');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -199,6 +200,7 @@ client.on('loggedOn', async () => {
 		applyGames(false, true);
 	}
 	refreshLibrary().then(resumeAfterRestart).catch((err) => log(`Couldn't load library: ${err.message}`));
+	tools.emit('loggedOn');
 });
 
 client.on('accountInfo', (name) => { app.account = name; });
@@ -737,6 +739,39 @@ function stopSession(reason, notify = false) {
 	events.emit('session', false);
 }
 
+// ---------- tools (screenshot uploader, ...) ----------
+
+// Extra Steam tools that share this Steam login; see src/tools/index.js
+const tools = createTools({
+	config,
+	state,
+	log,
+	debugLog,
+	shared: {
+		client,
+		desktop: process.env.IDLER_DESKTOP === '1',
+		mobile: MOBILE,
+		saveConfig: () => writeJson(CONFIG_FILE, config),
+		saveState: () => writeJson(STATE_FILE, state),
+		isLoggedIn: () => app.status === 'loggedIn',
+		accountId: () => client.steamID?.accountid ?? null,
+		steamID64: () => client.steamID?.getSteamID64() || null,
+		gameName: (appid) => app.library.find((a) => a.appid === appid)?.name || `App ${appid}`,
+		// the game your Steam app (or another PC) is playing, per Steam; 0 when none or it's one we idle
+		playingElsewhere: () => {
+			const p = app.playing;
+			if (!p?.blocked || !p.appid) return 0;
+			return session?.games.some((g) => g.appid === p.appid) ? 0 : p.appid;
+		},
+		// while idling through the Steam app, Steam reports the idled games, not the one you play
+		canSeePlaying: () => !(session && viaApp()),
+		openPath: (dir) => {
+			if (process.env.IDLER_DESKTOP !== '1') throw new Error(`The folder is ${dir}`);
+			events.emit('openPath', dir);
+		},
+	},
+});
+
 // ---------- http api ----------
 
 function statsSnapshot() {
@@ -773,6 +808,7 @@ function snapshot() {
 		qr: app.qr,
 		cards: { ...app.cards, ready: !!webCookies },
 		stats: statsSnapshot(),
+		tools: tools.snapshot(),
 		session: session && {
 			paused: session.paused,
 			blocked: session.blocked,
@@ -875,6 +911,10 @@ const routes = {
 		webSession: { at: diag.webSessionAt, cookieNames: diag.cookieNames, lastError: diag.webSessionError },
 		cardCheck: diag.cards,
 		steamCheck: diag.steamCheck,
+		tools: tools.snapshot().map((t) => ({
+			id: t.id, enabled: t.settings.enabled, available: t.available, error: t.error, pending: t.pending,
+			waiting: t.waiting, uploaded: t.uploaded, failed: t.failed.length, canDetectGame: t.canDetectGame, foundFolder: !!t.folder,
+		})),
 		log: logLines.slice(-60),
 	}),
 
@@ -1113,6 +1153,8 @@ const routes = {
 	},
 };
 
+Object.assign(routes, tools.routes);   // POST /api/tools/<id>/<action>
+
 const server = http.createServer(async (req, res) => {
 	// only accept requests addressed to this machine (blocks DNS-rebinding)
 	const host = (req.headers.host || '').split(':')[0];
@@ -1174,6 +1216,7 @@ function start(port = PORT) {
 // Stops idling and logs off Steam (so you don't stay "in-game" after quitting).
 function stop() {
 	stopSession('Shutting down.');
+	tools.emit('stop');
 	return new Promise((resolve) => setTimeout(() => {
 		client.logOff();
 		server.close();

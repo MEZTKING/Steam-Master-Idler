@@ -17,6 +17,8 @@
 - **Runs in the tray:** closing the window keeps it idling. Desktop notifications tell you when targets are reached.
 - **Play while idling:** on Windows it idles through your Steam app, so you can keep playing other games.
 - Optional "start when I log in", custom status text and online/invisible status.
+- **Tools tab** with extra Steam features that use the same sign-in:
+  - **Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default. No more pressing Upload in Steam's screenshot manager.
 
 ## Settings
 
@@ -49,6 +51,34 @@ The idler never changes your online status unless you pick one under **Show me a
 **Card idling order:** alphabetical, most drops first, or fewest drops first.
 
 No game is actually launched, so there is no VAC risk.
+
+## Tools
+
+Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray.
+
+### 📷 Screenshot uploader (desktop app)
+
+1. Open **🧰 Tools** and switch **Screenshot uploader** on.
+2. Play and take screenshots with Steam (F12) as usual.
+3. Close the game. The new screenshots are uploaded to your Steam screenshot library and you get a notification.
+
+| Option | |
+|---|---|
+| When to upload | **After I close the game** (default), or **Right after each screenshot**. |
+| Visibility on Steam | **Private** (default), Friends only, Unlisted or Public. |
+| Steam folder | Found automatically. Set it only if Steam is installed somewhere unusual. |
+
+- Only screenshots taken **after** you switch it on are uploaded automatically. **Upload N older screenshots** uploads the ones from before. Any that Steam's own `screenshots.vdf` already marks as uploaded are skipped. Skip this button if you've uploaded them yourself before, or they'll be on Steam twice.
+- **Upload now** uploads everything waiting, even while the game is still running.
+- The idler must be signed in to the **same Steam account** as your Steam app. Screenshots are read from `Steam/userdata/<your account id>/760/remote/<appid>/screenshots`.
+- It knows a game has closed from the Steam app's `RunningAppID` (the registry on Windows, `registry.vdf` on Linux/macOS) and from Steam itself. While you idle through the Steam app, Steam reports the idled games instead of the one you play. Uploads then start once no new screenshot has been taken for 10 minutes.
+- Steam's own screenshot manager may still show these screenshots as not uploaded, because the upload didn't go through the Steam app. Don't upload them again there.
+- Failed uploads are retried 3 times, then listed with a **Retry** button.
+- Screenshots of non-Steam games (shortcuts) aren't uploaded.
+
+### Adding a tool
+
+Each tool is one module in `src/tools/<id>/index.js` (see the comment at the top of `src/tools/index.js`), listed in `src/tools/index.js`, with its panel in the Tools section of `public/index.html`. A tool gets the shared Steam login, its own settings (`config.json` → `tools.<id>`), its own saved state (`state.json` → `tools.<id>`), the activity log and notifications, and its actions as `POST /api/tools/<id>/<action>`. `src/lib/steam-cm.js` sends raw Steam requests that steam-user has no method for.
 
 ## Download
 
@@ -138,6 +168,8 @@ Settings → **Save debug report** writes one `.txt` file (to Downloads in the d
 ## How it works
 
 The app logs in to Steam's client network with [steam-user](https://github.com/DoctorMcKay/node-steam-user), the same way a Steam client does, and reports the chosen games as being played. Steam then counts the playtime. Card drops are read from your badges page using the web session Steam issues at login.
+
+The screenshot uploader does what the Steam app does when you press Upload: it uploads the image and its thumbnail to Steam Cloud (`Cloud.ClientBeginFileUpload` / `ClientCommitFileUpload`, app 760), then registers the screenshot for the game with the visibility you chose (`ClientUCMAddScreenshot`). Finding the screenshot folders and `screenshots.vdf` follows the approach of [SteaScreeLoaded](https://github.com/Alsweider/SteaScreeLoaded).
 
 ---
 
