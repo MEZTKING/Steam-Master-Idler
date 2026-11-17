@@ -160,6 +160,21 @@ function create(ctx) {
 		return set;
 	}
 
+	function olderList() {
+		const steamDone = steamUploadedSet();
+		const games = [];
+		let dirs = [];
+		try { dirs = fs.readdirSync(path.join(root, 'remote')).filter((x) => /^\d+$/.test(x) && Number(x) < NON_STEAM); } catch { /* none */ }
+		for (const d of dirs) {
+			const shots = listDir(path.join(root, 'remote', d, 'screenshots'))
+				.filter((f) => { const key = `${d}/${f.name}`; return !st.uploaded[key] && !st.queued[key] && !steamDone.has(key) && f.mtimeMs < (st.baselineAt || Infinity); })
+				.map((f) => ({ key: `${d}/${f.name}`, name: f.name, takenAt: (timeFromName(f.name) || f.mtimeMs / 1000) * 1000, size: f.size }))
+				.sort((a, b) => b.takenAt - a.takenAt);
+			if (shots.length) games.push({ appid: +d, game: gameName(+d), icon: ctx.gameIcon ? ctx.gameIcon(+d) : null, shots });
+		}
+		return games.sort((a, b) => b.shots[0].takenAt - a.shots[0].takenAt);
+	}
+
 	function canRetry(key) {
 		const f = st.failed[key];
 		if (!f) return true;
@@ -356,24 +371,36 @@ function create(ctx) {
 			tick(true).catch(() => {});
 		},
 		// also upload screenshots from before the uploader was switched on
-		async 'POST upload-older'() {
+		// older screenshots (from before the uploader was on, not on Steam yet), grouped by game, newest first
+		async 'GET older'() {
+			await locate(true);
+			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
+			return { games: olderList() };
+		},
+		// a screenshot's thumbnail (or the full image with full=1), only from the screenshots folder
+		async 'GET image'(q) {
+			const key = String(q.key || '');
+			if (!root || !/^\d+\/[\w .()-]+\.jpe?g$/i.test(key)) throw new Error('Bad screenshot');
+			const [appid, name] = key.split('/');
+			const dir = path.join(root, 'remote', appid, 'screenshots');
+			const thumb = path.join(dir, 'thumbnails', name);
+			const file = q.full === '1' || !fs.existsSync(thumb) ? path.join(dir, name) : thumb;
+			if (!path.resolve(file).startsWith(path.resolve(root) + path.sep)) throw new Error('Bad screenshot');
+			return { raw: true, type: 'image/jpeg', cache: 'private, max-age=3600', body: fs.readFileSync(file) };
+		},
+		// { keys: ["appid/file.jpg", ...] } - only these; without keys: every older screenshot
+		async 'POST upload-older'(body) {
 			if (!ctx.isLoggedIn()) throw new Error('Log in first');
 			await locate(true);
 			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
-			const steamDone = steamUploadedSet();
-			let n = 0;
-			for (const d of fs.readdirSync(path.join(root, 'remote')).filter((x) => /^\d+$/.test(x) && Number(x) < NON_STEAM)) {
-				for (const f of listDir(path.join(root, 'remote', d, 'screenshots'))) {
-					const key = `${d}/${f.name}`;
-					if (st.uploaded[key] || steamDone.has(key) || f.mtimeMs >= (st.baselineAt || Infinity)) continue;
-					st.queued[key] = true;
-					n++;
-				}
-			}
+			const older = new Set(olderList().flatMap((g) => g.shots.map((x) => x.key)));
+			const keys = Array.isArray(body?.keys) ? body.keys.filter((k) => older.has(k)) : [...older];
+			for (const key of keys) st.queued[key] = true;
 			ctx.saveState();
-			ctx.log(`📷 Queued ${n} older screenshot${n === 1 ? '' : 's'} for upload.`);
+			const games = new Set(keys.map((k) => k.split('/')[0])).size;
+			ctx.log(`📷 Queued ${keys.length} older screenshot${keys.length === 1 ? '' : 's'} from ${games} game${games === 1 ? '' : 's'} for upload.`);
 			tick(true).catch(() => {});
-			return { queued: n };
+			return { queued: keys.length };
 		},
 		'POST retry-failed'() {
 			st.failed = {};

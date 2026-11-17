@@ -25,6 +25,8 @@ async function getStoreItems(client, appids, { country = 'US', allOptions = fals
 				unlisted: !!it.unlisted,
 				free: !!it.is_free,
 				freeTemporarily: !!it.is_free_temporarily,
+				freeWeekend: it.free_weekend && (it.free_weekend.end_time || it.free_weekend.start_time)
+					? { start: (it.free_weekend.start_time || 0) * 1000, end: (it.free_weekend.end_time || 0) * 1000, text: it.free_weekend.text || '' } : null,
 				price: best ? best.formatted_final_price || null : null,
 				originalPrice: best ? best.formatted_original_price || null : null,
 				finalCents: best ? cents(best.final_price_in_cents) : null,

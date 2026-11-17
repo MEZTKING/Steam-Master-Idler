@@ -29,6 +29,7 @@ function create(ctx) {
 	st.announced ??= {};    // appid -> final cents last announced
 	st.delist ??= {};       // appid -> { kind: 'gone'|'news', title, url, date, at }
 	st.delistAnnounced ??= {};
+	st.freeAnnounced ??= {};   // "appid:kind:until" free weekends / free-to-keep already announced
 	let delistTimer = null;
 	let delistBusy = false;
 	let items = [];         // last check (kept in memory only)
@@ -60,6 +61,7 @@ function create(ctx) {
 			const wish = await fetchWishlist();
 			const prices = await getStoreItems(ctx.client, wish.map((w) => w.appid), { country: ctx.country() });
 			items = wish.map((w) => ({ ...w, ...(prices.get(w.appid) || { appid: w.appid, name: `App ${w.appid}` }) }));
+			if (cfg.freeAlerts !== false) announceFree();
 			const deals = items.filter(isDeal);
 			const fresh = deals.filter((d) => st.announced[d.appid] !== d.finalCents);
 			for (const id of Object.keys(st.announced)) if (!deals.some((d) => d.appid === +id)) delete st.announced[id];
@@ -81,6 +83,30 @@ function create(ctx) {
 			busy = false;
 			schedule();
 		}
+	}
+
+	// ----- free weekends and free-to-keep -----
+	const freeKind = (it) => {
+		const fw = it.freeWeekend;
+		if (fw && (!fw.end || fw.end > Date.now())) return { kind: 'weekend', until: fw.end || 0, text: fw.text };
+		if (it.freeTemporarily) return { kind: 'weekend', until: it.endsAt || 0 };
+		if (it.finalCents === 0 && it.originalCents > 0) return { kind: 'keep', until: it.endsAt || 0 };
+		return null;
+	};
+	function announceFree() {
+		const weekend = [];
+		const keep = [];
+		for (const it of items) {
+			const f = freeKind(it);
+			if (!f) continue;
+			const key = `${it.appid}:${f.kind}:${f.until}`;
+			if (st.freeAnnounced[key]) continue;
+			st.freeAnnounced[key] = Date.now();
+			(f.kind === 'keep' ? keep : weekend).push(`${it.name}${f.until ? ` (until ${new Date(f.until).toLocaleDateString()})` : ''}`);
+		}
+		for (const [k, t] of Object.entries(st.freeAnnounced)) if (Date.now() - t > 30 * 86_400_000) delete st.freeAnnounced[k];
+		if (keep.length) ctx.log(`🆓 Free to keep from your wishlist: ${keep.join(', ')}. Claim it on the store page, or with the Free game claimer.`, true);
+		if (weekend.length) ctx.log(`🎮 Free to play now from your wishlist: ${weekend.join(', ')}.`, true);
 	}
 
 	// ----- may be delisted soon -----
@@ -179,13 +205,14 @@ function create(ctx) {
 			'GET data'() {
 				return {
 					items: items.map((i) => ({ appid: i.appid, name: i.name, price: i.price, originalPrice: i.originalPrice, discount: i.discount,
-						finalCents: i.finalCents, endsAt: i.endsAt, free: i.free, deal: isDeal(i), target: st.targets[i.appid] ?? null,
-						delist: cfg.delistWatch ? st.delist[i.appid] || null : null }))
+						finalCents: i.finalCents, endsAt: i.endsAt, deal: isDeal(i), target: st.targets[i.appid] ?? null,
+						delist: cfg.delistWatch ? st.delist[i.appid] || null : null, free: freeKind(i)?.kind || (i.free ? 'f2p' : null) }))
 						.sort((a, b) => !!b.delist - !!a.delist || b.deal - a.deal || b.discount - a.discount || a.name.localeCompare(b.name)),
 				};
 			},
 			'POST settings'(body) {
 				if ('minDiscount' in body) cfg.minDiscount = Math.max(1, Math.min(100, parseInt(body.minDiscount, 10) || 50));
+				if ('freeAlerts' in body) cfg.freeAlerts = !!body.freeAlerts;
 				if ('everyHours' in body) cfg.everyHours = [1, 3, 6, 12, 24].includes(+body.everyHours) ? +body.everyHours : 6;
 				if ('delistWatch' in body) {
 					cfg.delistWatch = !!body.delistWatch;
