@@ -17,6 +17,8 @@ const { startPasswordLogin } = require('./lib/password-login');
 const { fetchCardDrops } = require('./lib/cards');
 const { createDebugLog } = require('./lib/debuglog');
 const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
+const { createTools } = require('./tools');
+const { createUpdater } = require('./lib/updater');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -64,6 +66,9 @@ const config = Object.assign({
 	theme: 'dark',
 	showUsername: true,
 	minimizeToTray: true,  // desktop app only
+	freeMemoryInTray: true, // desktop app only: close the window fully while it's in the tray
+	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
+	autoUpdate: true,      // Windows installer / AppImage: download it in the background, install on restart
 	preventSleep: true,    // desktop app only
 	shutdownWhenDone: false,
 	games: [],
@@ -142,6 +147,7 @@ let guardCallback = null;
 let qrLogin = null;
 let pwLogin = null;   // username/password sign-in waiting for Steam Guard
 let webCookies = null;
+let webSessionID = null;
 
 // what the diagnostics report shows (never cookie values, tokens or passwords)
 const diag = { webSessionAt: null, webSessionError: null, cookieNames: [], cards: null, steamCheck: null };
@@ -199,9 +205,10 @@ client.on('loggedOn', async () => {
 		applyGames(false, true);
 	}
 	refreshLibrary().then(resumeAfterRestart).catch((err) => log(`Couldn't load library: ${err.message}`));
+	tools.emit('loggedOn');
 });
 
-client.on('accountInfo', (name) => { app.account = name; });
+client.on('accountInfo', (name, country) => { app.account = name; app.country = country || app.country || null; });
 
 client.on('debug', (msg) => {
 	debugLog.write('steam', msg);   // includes "Sending message: ClientGamesPlayed..." / "Handled message: ..."
@@ -211,6 +218,7 @@ client.on('debug', (msg) => {
 client.on('webSession', (sessionID, cookies) => {
 	const first = !webCookies;
 	webCookies = cookies;
+	webSessionID = sessionID;
 	diag.webSessionAt = Date.now();
 	diag.cookieNames = cookies.map((c) => c.split('=')[0]);
 	debugLog.write('diag', 'web session received, cookies:', diag.cookieNames.join(','));
@@ -380,8 +388,10 @@ function updateSessionDrops() {
 	if (changed) applyGames();
 }
 
+let libraryVersion = 0;   // bumped on every change, so the page only downloads the library when it changed
 async function refreshLibrary() {
 	const { apps } = await client.getUserOwnedApps(client.steamID, { includePlayedFreeGames: true, includeFreeSub: true });
+	libraryVersion++;
 	app.library = apps
 		.map((a) => ({ appid: a.appid, name: a.name, minutes: a.playtime_forever, icon: a.img_icon_url || null }))
 		.sort((a, b) => b.minutes - a.minutes);
@@ -737,6 +747,74 @@ function stopSession(reason, notify = false) {
 	events.emit('session', false);
 }
 
+// ---------- tools (screenshot uploader, ...) ----------
+
+// Briefly shows our own login as playing appid while fn runs (some Steam requests, like storing
+// achievements, are only accepted for a game you're in), then puts back whatever was idling.
+async function withGamePlaying(appid, fn) {
+	if (!viaApp() && session && !isPaused() && session.active.some((g) => g.appid === appid)) return fn();
+	const idling = session && !viaApp() && !isPaused() ? JSON.parse(session.lastSent || '[]') : [];
+	client.gamesPlayed([...idling.filter((x) => x !== appid), appid].slice(-STEAM_MAX_GAMES));
+	await new Promise((r) => setTimeout(r, 1500));
+	try {
+		return await fn();
+	} finally {
+		if (session && !viaApp()) { session.lastSent = null; applyGames(true, true); }
+		else { client.gamesPlayed([]); if (session) session.lastSent = '[]'; }
+	}
+}
+
+// Extra Steam tools that share this Steam login; see src/tools/index.js
+const tools = createTools({
+	config,
+	state,
+	log,
+	debugLog,
+	shared: {
+		client,
+		desktop: process.env.IDLER_DESKTOP === '1',
+		mobile: MOBILE,
+		saveConfig: () => writeJson(CONFIG_FILE, config),
+		saveState: () => writeJson(STATE_FILE, state),
+		isLoggedIn: () => app.status === 'loggedIn',
+		accountId: () => client.steamID?.accountid ?? null,
+		steamID64: () => client.steamID?.getSteamID64() || null,
+		country: () => app.country || null,
+		web: () => (webCookies ? { sessionID: webSessionID, cookies: webCookies } : null),
+		gameName: (appid) => app.library.find((a) => a.appid === appid)?.name || `App ${appid}`,
+		gameIcon: (appid) => app.library.find((a) => a.appid === appid)?.icon || null,
+		ownsApp: (appid) => app.library.some((a) => a.appid === appid),
+		library: () => app.library,
+		refreshLibrary: () => refreshLibrary(),
+		withGamePlaying,
+		// the game your Steam app (or another PC) is playing, per Steam; 0 when none or it's one we idle
+		playingElsewhere: () => {
+			const p = app.playing;
+			if (!p?.blocked || !p.appid) return 0;
+			return session?.games.some((g) => g.appid === p.appid) ? 0 : p.appid;
+		},
+		// while idling through the Steam app, Steam reports the idled games, not the one you play
+		canSeePlaying: () => !(session && viaApp()),
+		openPath: (dir) => {
+			if (process.env.IDLER_DESKTOP !== '1') throw new Error(`The folder is ${dir}`);
+			events.emit('openPath', dir);
+		},
+	},
+});
+
+// ---------- updates ----------
+
+const updater = createUpdater({
+	version: VERSION,
+	dataDir: DATA_DIR,
+	desktop: process.env.IDLER_DESKTOP === '1',
+	mobile: MOBILE,
+	log,
+	debug: (msg) => debugLog.write('update', msg),
+	events,   // 'installUpdate' -> main.js installs and restarts
+	getConfig: () => config,
+});
+
 // ---------- http api ----------
 
 function statsSnapshot() {
@@ -754,7 +832,7 @@ function statsSnapshot() {
 	};
 }
 
-function snapshot() {
+function snapshot(query = {}) {
 	// time idled since the last tick, so clocks in the page move every second, not every 5
 	const live = session && !isPaused() && session.active.some(isRunning) ? Date.now() - session.lastTick : 0;
 	return {
@@ -769,10 +847,13 @@ function snapshot() {
 		steamApp: { supported: STEAM_APP_SUPPORTED, ...(STEAM_APP_SUPPORTED ? steamApp.available() : { ok: false }) },
 		shutdownAt: app.shutdownAt || null,
 		config: { ...config, password: undefined },
-		library: app.library,
+		libraryVersion,
+		library: query.lib === String(libraryVersion) ? undefined : app.library,
 		qr: app.qr,
 		cards: { ...app.cards, ready: !!webCookies },
 		stats: statsSnapshot(),
+		tools: tools.snapshot(),
+		update: updater.snapshot(),
 		session: session && {
 			paused: session.paused,
 			blocked: session.blocked,
@@ -826,7 +907,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
@@ -846,10 +927,11 @@ function applySettings(body) {
 	if ('maxConcurrent' in body) config.maxConcurrent = Math.min(STEAM_MAX_GAMES, Math.max(1, parseInt(body.maxConcurrent, 10) || STEAM_MAX_GAMES));
 	if (body.games) config.games = cleanGames(body.games);
 	writeJson(CONFIG_FILE, config);
+	if ('checkUpdates' in body) updater.schedule();
 }
 
 const routes = {
-	'GET /api/state': () => snapshot(),
+	'GET /api/state': (query) => snapshot(query),
 
 	// support info to paste into a bug report: no cookie values, tokens or passwords
 	'GET /api/diagnostics': () => ({
@@ -875,6 +957,10 @@ const routes = {
 		webSession: { at: diag.webSessionAt, cookieNames: diag.cookieNames, lastError: diag.webSessionError },
 		cardCheck: diag.cards,
 		steamCheck: diag.steamCheck,
+		tools: tools.snapshot().map((t) => ({
+			id: t.id, enabled: t.enabled, available: t.available, error: t.error || null, status: t.status || null,
+			...(t.id === 'screenshots' && t.enabled ? { pending: t.pending, waiting: t.waiting, uploaded: t.uploaded, failed: t.failed.length, canDetectGame: t.canDetectGame, foundFolder: !!t.folder } : {}),
+		})),
 		log: logLines.slice(-60),
 	}),
 
@@ -1001,6 +1087,7 @@ const routes = {
 		forgetToken();
 		app.status = 'loggedOut';
 		app.library = [];
+		libraryVersion++;
 		app.account = null;
 		app.cards = { loading: false, error: null, checkedAt: null, drops: {} };
 		webCookies = null;
@@ -1063,6 +1150,10 @@ const routes = {
 
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
+	'POST /api/update/check': () => updater.check(),
+	'POST /api/update/download': async () => { await updater.download(); },
+	'POST /api/update/install': () => updater.install(),
+
 	'POST /api/stop': () => { stopSession('Stopped.'); },
 
 	// add a game to the running session (it starts right away if there's a free slot)
@@ -1118,13 +1209,15 @@ const server = http.createServer(async (req, res) => {
 	const host = (req.headers.host || '').split(':')[0];
 	if (!['127.0.0.1', 'localhost'].includes(host)) { res.writeHead(403); return res.end(); }
 
-	const url = req.url.split('?')[0];
+	const [url, qs = ''] = req.url.split('?');
 	if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
 		res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
 		return res.end(fs.readFileSync(INDEX_HTML));
 	}
 
-	const handler = routes[`${req.method} ${url}`];
+	// /api/tools/<id>/<action> goes to that tool (see src/tools/index.js)
+	const toolMatch = url.match(/^\/api\/tools\/([\w-]+)\/([\w-]+)$/);
+	const handler = toolMatch ? (body) => tools.route(req.method, toolMatch[1], toolMatch[2], body) : routes[`${req.method} ${url}`];
 	if (!handler) { res.writeHead(404); return res.end(); }
 
 	// POSTs must be JSON from our own page (blocks cross-site form posts)
@@ -1143,7 +1236,7 @@ const server = http.createServer(async (req, res) => {
 	}
 	if (req.method === 'POST') debugLog.write('api', req.method, url);   // never the body (it can hold a password)
 	try {
-		const result = await handler(raw ? JSON.parse(raw) : {});
+		const result = await handler(req.method === 'GET' ? Object.fromEntries(new URLSearchParams(qs)) : raw ? JSON.parse(raw) : {});
 		if (result?.raw) {
 			res.writeHead(200, { 'Content-Type': result.type, 'Content-Disposition': `attachment; filename="${result.filename}"`, 'Cache-Control': 'no-store' });
 			return res.end(result.body);
@@ -1152,7 +1245,7 @@ const server = http.createServer(async (req, res) => {
 		res.end(JSON.stringify(result ?? { ok: true }));
 	} catch (err) {
 		debugLog.write('error', `${req.method} ${url} failed:`, err);
-		res.writeHead(400, { 'Content-Type': 'application/json' });
+		res.writeHead(err.status || 400, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify({ error: err.message }));
 	}
 });
@@ -1166,6 +1259,7 @@ function start(port = PORT) {
 			debugLog.write('info', `=== start v${VERSION} ${process.platform} ${process.arch} electron=${process.versions.electron || '-'} node=${process.versions.node} desktop=${process.env.IDLER_DESKTOP === '1'} ===`);
 			log(`GUI running at ${url}`);
 			loginWithSavedSession();
+			updater.start();
 			resolve(url);
 		});
 	});
@@ -1174,6 +1268,8 @@ function start(port = PORT) {
 // Stops idling and logs off Steam (so you don't stay "in-game" after quitting).
 function stop() {
 	stopSession('Shutting down.');
+	tools.emit('stop');
+	updater.stop();
 	return new Promise((resolve) => setTimeout(() => {
 		client.logOff();
 		server.close();

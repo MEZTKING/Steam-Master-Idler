@@ -3,8 +3,10 @@
 // Desktop app: runs the idler server in-process and shows its page in a window.
 // Closing the window keeps idling in the tray; quit from the tray menu.
 
+const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, powerSaveBlocker } = require('electron');
+const { spawn } = require('child_process');
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, powerSaveBlocker, session } = require('electron');
 
 // one copy at a time - a second launch just focuses the existing window
 if (!app.requestSingleInstanceLock()) {
@@ -40,9 +42,8 @@ function createWindow() {
 		webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
 	});
 	win.loadURL(url);
-	win.once('ready-to-show', () => {
-		if (!process.argv.includes('--hidden')) win.show();
-	});
+	win.once('ready-to-show', () => win.show());
+	win.on('closed', () => { win = null; });
 
 	// links to other sites open in the normal browser
 	win.webContents.setWindowOpenHandler(({ url: target }) => {
@@ -53,29 +54,18 @@ function createWindow() {
 		if (!target.startsWith(url)) e.preventDefault();
 	});
 
-	// "Save debug report": put it in Downloads and show it in the file manager
-	win.webContents.session.on('will-download', (e, item) => {
-		item.setSavePath(path.join(app.getPath('downloads'), item.getFilename()));
-		item.once('done', (_, state) => {
-			if (state === 'completed') {
-				shell.showItemInFolder(item.getSavePath());
-				notify(`Debug report saved to ${item.getSavePath()}`);
-			}
-		});
-	});
-
 	// "Minimize to system tray": minimizing or closing hides the window and keeps idling.
 	// With it off, minimize works normally and closing the window quits.
 	win.on('minimize', (e) => {
 		if (!server.getConfig().minimizeToTray) return;
 		e.preventDefault();
-		win.hide();
+		toTray();
 	});
 	win.on('close', (e) => {
 		if (quitting) return;
 		if (!server.getConfig().minimizeToTray) return app.quit();
 		e.preventDefault();
-		win.hide();
+		toTray();
 		if (!trayHintShown && server.isIdling()) {
 			trayHintShown = true;
 			notify('Still idling in the background. Use the tray icon to open or quit.');
@@ -83,8 +73,17 @@ function createWindow() {
 	});
 }
 
-function showWindow() {
+// "Free memory while in the tray": close the window completely (its page is what uses the memory);
+// everything keeps running, and the tray icon builds a new window in about a second
+function toTray() {
 	if (!win) return;
+	if (server.getConfig().freeMemoryInTray) setImmediate(() => { if (win) win.destroy(); });
+	else win.hide();
+}
+
+function showWindow() {
+	if (!url) return;
+	if (!win) return createWindow();
 	if (win.isMinimized()) win.restore();
 	win.show();
 	win.focus();
@@ -131,6 +130,45 @@ function createTray() {
 	});
 }
 
+// In-app update (see lib/updater.js): the file is downloaded and checked; put it in place and restart.
+// macOS .dmg / Linux .deb: opened for you to finish (unsigned apps can't replace themselves there).
+async function installUpdate({ kind, file, version }) {
+	try {
+		if (kind === 'dmg' || kind === 'deb') {
+			const err = await shell.openPath(file);
+			if (err) throw new Error(err);
+			notify(`Version ${version} downloaded. Finish installing it in the window that opened, then restart the app.`);
+			return;
+		}
+		let relaunch = null;
+		if (kind === 'portable') {
+			// the running .exe can't be overwritten: put the new one next to it and start that
+			const dest = path.join(process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.env.PORTABLE_EXECUTABLE_FILE), path.basename(file));
+			fs.copyFileSync(file, dest);
+			relaunch = dest;
+		} else if (kind === 'appimage') {
+			const target = process.env.APPIMAGE;
+			fs.copyFileSync(file, `${target}.new`);
+			fs.chmodSync(`${target}.new`, 0o755);
+			fs.renameSync(`${target}.new`, target);   // fine while running on Linux
+			relaunch = target;
+		} else if (kind !== 'nsis') {
+			throw new Error(`can't install updates for ${kind}`);
+		}
+		quitting = true;
+		await server.stop();   // stop idling and log off cleanly first
+		if (kind === 'nsis') {
+			// silent install into the same folder; --force-run starts the new version afterwards
+			spawn(file, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+		} else {
+			app.relaunch({ execPath: relaunch, args: [] });
+		}
+		app.exit(0);
+	} catch (err) {
+		notify(`Couldn't install the update: ${err.message}`);
+	}
+}
+
 app.on('second-instance', showWindow);
 app.on('activate', showWindow);   // macOS dock click
 
@@ -147,10 +185,22 @@ app.whenReady().then(async () => {
 	url = await server.start(0);   // any free local port
 	server.events.on('notify', notify);
 	server.events.on('openPath', (dir) => shell.openPath(dir));
+	server.events.on('installUpdate', installUpdate);
 	server.events.on('session', updateSleepBlocker);
 	server.events.on('config', updateSleepBlocker);
+	// "Save debug report": put it in Downloads and show it in the file manager
+	session.defaultSession.on('will-download', (e, item) => {
+		item.setSavePath(path.join(app.getPath('downloads'), item.getFilename()));
+		item.once('done', (_, state) => {
+			if (state === 'completed') {
+				shell.showItemInFolder(item.getSavePath());
+				notify(`Debug report saved to ${item.getSavePath()}`);
+			}
+		});
+	});
 	createTray();
-	createWindow();
+	// started hidden at login: don't build the window until it's opened from the tray
+	if (!process.argv.includes('--hidden')) createWindow();
 });
 
 // the tray keeps the app alive, so don't quit when the window closes
