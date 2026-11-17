@@ -1285,7 +1285,7 @@ TOOL_RENDER.screenshots = (t) => {
 	const st = $('#ss-status');
 	st.className = 'steam-check' + (t.error ? ' bad' : t.busy ? '' : t.folder ? ' ok' : '');
 	st.textContent = t.error ? `⚠ ${t.error}`
-		: t.current ? `Uploading ${t.current.game} screenshot ${t.current.done + 1} of ${t.current.total}…`
+		: t.current ? `Uploading ${t.current.game}: screenshot ${t.current.done + 1} of ${t.current.total}${t.current.games > 1 ? ` (game ${t.current.gameNo} of ${t.current.games}, ${t.current.overall + 1}/${t.current.overallTotal} overall)` : ''}…`
 		: S.status !== 'loggedIn' ? 'Waiting for the Steam sign-in…'
 		: !t.lastScanAt ? 'Looking for your screenshots…'
 		: t.waiting && t.running.length ? `✔ Watching. ${t.waiting} screenshot(s) will upload when you close ${t.running.map((g) => g.name).join(', ')}.`

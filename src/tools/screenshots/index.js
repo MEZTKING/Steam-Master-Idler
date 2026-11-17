@@ -192,45 +192,71 @@ function create(ctx) {
 		const thumbFile = path.join(s.dir, 'thumbnails', s.name);
 		const thumb = fs.existsSync(thumbFile) ? fs.readFileSync(thumbFile) : (makeThumb(file) || data);
 		const created = timeFromName(s.name) || Math.floor(s.mtimeMs / 1000);
-		const id = await uploadScreenshot(ctx.client, { appid: s.appid, name: s.name, data, thumb, ...size, created },
+		const { id, existed } = await uploadScreenshot(ctx.client, { appid: s.appid, name: s.name, data, thumb, ...size, created },
 			{ privacy: cfg.privacy, debug: (m) => ctx.debug(m) });
-		st.uploaded[s.key] = { at: Date.now(), id };
+		st.uploaded[s.key] = { at: Date.now(), id, existed: existed || undefined };
 		delete st.failed[s.key];
 		delete st.queued[s.key];
 		st.count++;
-		st.recent.unshift({ key: s.key, appid: s.appid, name: s.name, at: Date.now(), bytes: data.length });
+		st.recent.unshift({ key: s.key, appid: s.appid, name: s.name, at: Date.now(), bytes: data.length, existed: existed || undefined });
 		st.recent.length = Math.min(st.recent.length, RECENT_MAX);
 		ctx.saveState();
+		return existed;
+	}
+
+	// Game by game: the game you just closed first, then the others (newest screenshots first);
+	// within a game, oldest screenshot first. Each game is announced as soon as it's done.
+	const closedAt = new Map();   // appid -> when it was closed
+	function byGameOrder(list) {
+		const groups = new Map();
+		for (const s of list) {
+			if (!groups.has(s.appid)) groups.set(s.appid, []);
+			groups.get(s.appid).push(s);
+		}
+		const newest = (g) => Math.max(...g.map((s) => s.mtimeMs));
+		return [...groups.entries()]
+			.sort(([a, ga], [b, gb]) => (closedAt.get(b) || 0) - (closedAt.get(a) || 0) || newest(gb) - newest(ga))
+			.map(([, g]) => g.sort((x, y) => x.mtimeMs - y.mtimeMs));
 	}
 
 	async function uploadBatch(list) {
 		busy = true;
-		const byGame = new Map();
+		const privacyName = { private: 'private', friends: 'friends only', unlisted: 'unlisted', public: 'public' }[cfg.privacy];
+		const games = byGameOrder(list);
+		let already = 0;
+		let done = 0;
 		try {
-			for (let i = 0; i < list.length; i++) {
-				const s = list[i];
-				if (!ctx.isLoggedIn()) break;
-				view.current = { game: gameName(s.appid), file: s.name, done: i, total: list.length };
-				try {
-					await uploadOne(s);
-					byGame.set(s.appid, (byGame.get(s.appid) || 0) + 1);
-				} catch (err) {
-					const f = st.failed[s.key] || { tries: 0 };
-					st.failed[s.key] = { tries: err.permanent ? MAX_TRIES : f.tries + 1, at: Date.now(), error: err.message };
-					ctx.saveState();
-					ctx.debug(`upload ${s.key} failed: ${err.stack || err.message}`);
-					ctx.log(`📷 Couldn't upload a ${gameName(s.appid)} screenshot (${s.name}): ${err.message}.${st.failed[s.key].tries >= MAX_TRIES ? '' : ' Will retry.'}`);
-					if (/not connected|did not answer/i.test(err.message)) break;
+			for (let gi = 0; gi < games.length; gi++) {
+				const shots = games[gi];
+				const appid = shots[0].appid;
+				let n = 0;
+				let stop = false;
+				for (let i = 0; i < shots.length; i++) {
+					const s = shots[i];
+					if (!ctx.isLoggedIn()) { stop = true; break; }
+					view.current = { game: gameName(appid), done: i, total: shots.length, gameNo: gi + 1, games: games.length, overall: done, overallTotal: list.length };
+					done++;
+					try {
+						if (await uploadOne(s)) { already++; continue; }
+						n++;
+					} catch (err) {
+						const f = st.failed[s.key] || { tries: 0 };
+						st.failed[s.key] = { tries: err.permanent ? MAX_TRIES : f.tries + 1, at: Date.now(), error: err.message };
+						ctx.saveState();
+						ctx.debug(`upload ${s.key} failed: ${err.stack || err.message}`);
+						ctx.log(`📷 Couldn't upload a ${gameName(appid)} screenshot (${s.name}): ${err.message}.${st.failed[s.key].tries >= MAX_TRIES ? '' : ' Will retry.'}`);
+						if (/not connected|did not answer/i.test(err.message)) { stop = true; break; }
+					}
 				}
+				if (n) ctx.log(`📷 Uploaded ${n} ${gameName(appid)} screenshot${n === 1 ? '' : 's'} to your Steam library (${privacyName}).`, true);
+				closedAt.delete(appid);
+				if (stop) break;
 			}
 		} finally {
 			busy = false;
 			view.current = null;
 		}
-		const privacyName = { private: 'private', friends: 'friends only', unlisted: 'unlisted', public: 'public' }[cfg.privacy];
-		for (const [appid, n] of byGame) {
-			ctx.log(`📷 Uploaded ${n} ${gameName(appid)} screenshot${n === 1 ? '' : 's'} to your Steam library (${privacyName}).`, true);
-		}
+		if (already) ctx.log(`📷 ${already} screenshot${already === 1 ? ' was' : 's were'} already in your Steam library, skipped.`);
 	}
 
 	// one check at a time; a check asked for meanwhile runs right after (so nothing is uploaded twice)
@@ -261,6 +287,7 @@ function create(ctx) {
 			for (const appid of lastRunning) {
 				if (running.has(appid)) continue;
 				const n = pending.filter((s) => s.appid === appid).length;
+				closedAt.set(appid, Date.now());
 				if (n) ctx.log(`📷 ${gameName(appid)} closed. Uploading ${n} new screenshot${n === 1 ? '' : 's'}…`);
 			}
 			lastRunning = running;

@@ -58,7 +58,9 @@ function hookReplies(client, emsg) {
 	});
 }
 
-function request(client, header, body, resType, timeoutMs, untagged) {
+// headerResult: only unified service replies fill in the header's eresult; on classic messages it's
+// left out, and steam-user then decodes it as its default (2 = Fail), so there the body's eresult counts.
+function request(client, header, body, resType, timeoutMs, untagged, headerResult = false) {
 	return new Promise((resolve, reject) => {
 		if (!client.steamID) return reject(new SteamCallError('Not connected to Steam'));
 		let done = false;
@@ -66,7 +68,7 @@ function request(client, header, body, resType, timeoutMs, untagged) {
 		const finish = (fn) => { if (done) return false; done = true; clearTimeout(timer); if (waiter) waiters.get(untagged.emsg)?.delete(waiter); fn(); return true; };
 		const timer = setTimeout(() => finish(() => reject(new SteamCallError('Steam did not answer in time'))), timeoutMs);
 		const handle = (resBody, resHeader) => finish(() => {
-			const eresult = resHeader?.proto?.eresult;
+			const eresult = headerResult ? resHeader?.proto?.eresult : null;
 			if (eresult != null && eresult !== EResult.OK) {
 				const msg = resHeader.proto.error_message || EResult[eresult] || `error ${eresult}`;
 				return reject(new SteamCallError(`Steam refused the request: ${msg}`, eresult));
@@ -92,7 +94,7 @@ function request(client, header, body, resType, timeoutMs, untagged) {
 // A "unified" service method, e.g. Cloud.ClientBeginFileUpload#1
 function callService(client, method, reqType, resType, body, timeoutMs = DEFAULT_TIMEOUT) {
 	const header = { msg: EMsg.ServiceMethodCallFromClient, proto: { target_job_name: method } };
-	return request(client, header, encode(reqType, body), resType, timeoutMs);
+	return request(client, header, encode(reqType, body), resType, timeoutMs, null, true);
 }
 
 // A classic protobuf message with a reply, e.g. ClientUCMAddScreenshot -> ClientUCMAddScreenshotResponse.

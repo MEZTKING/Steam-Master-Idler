@@ -6,6 +6,7 @@
 //   2. HTTP upload of the bytes, then Cloud.ClientCommitFileUpload
 //   3. the same for the thumbnail
 //   4. ClientUCMAddScreenshot: attach it to the game with a visibility (Private by default)
+// "DuplicateRequest" from Steam means that file / screenshot is already there, which counts as done.
 
 const crypto = require('crypto');
 const { callService, sendMsg, EMsg, EResult } = require('../../lib/steam-cm');
@@ -16,9 +17,14 @@ const SKIP_HEADERS = new Set(['content-length', 'host', 'connection', 'transfer-
 // EUCMFilePrivacyState
 const PRIVACY = { private: 2, friends: 4, public: 8, unlisted: 16 };
 
+// tag an error with the step it happened in, so the log says where Steam refused
+const step = (what, err) => Object.assign(new Error(`${what}: ${err.message}`), { eresult: err.eresult, permanent: err.permanent });
+
 async function cloudUpload(client, cloudName, data, timestamp, debug) {
 	const sha = crypto.createHash('sha1').update(data).digest();
-	const begin = await callService(client, 'Cloud.ClientBeginFileUpload#1',
+	let begin;
+	try {
+		begin = await callService(client, 'Cloud.ClientBeginFileUpload#1',
 		'CCloud_ClientBeginFileUpload_Request', 'CCloud_ClientBeginFileUpload_Response', {
 			appid: SCREENSHOTS_APP,
 			file_size: data.length,
@@ -30,6 +36,10 @@ async function cloudUpload(client, cloudName, data, timestamp, debug) {
 			can_encrypt: false,
 			is_shared_file: true,
 		});
+	} catch (err) {
+		if (err.eresult === EResult.DuplicateRequest) { debug?.(`cloud ${cloudName}: already in Steam Cloud`); return 'exists'; }
+		throw step('Steam Cloud refused to start the upload', err);
+	}
 	if (begin.encrypt_file) throw new Error('Steam asked for an encrypted upload, which is not supported');
 	let ok = false;
 	try {
@@ -42,7 +52,7 @@ async function cloudUpload(client, cloudName, data, timestamp, debug) {
 			const method = HTTP_METHODS[b.http_method] || 'PUT';
 			const res = await fetch(url, { method, headers, body: method === 'GET' || method === 'HEAD' ? undefined : body });
 			debug?.(`cloud ${method} ${b.url_host} ${body.length} bytes -> HTTP ${res.status}`);
-			if (!res.ok) throw new Error(`Steam Cloud storage answered HTTP ${res.status}`);
+			if (!res.ok) throw new Error(`Uploading to Steam Cloud storage: HTTP ${res.status}`);
 		}
 		ok = true;
 	} finally {
@@ -50,19 +60,25 @@ async function cloudUpload(client, cloudName, data, timestamp, debug) {
 		const commit = await callService(client, 'Cloud.ClientCommitFileUpload#1',
 			'CCloud_ClientCommitFileUpload_Request', 'CCloud_ClientCommitFileUpload_Response', {
 				transfer_succeeded: ok, appid: SCREENSHOTS_APP, file_sha: sha, filename: cloudName,
-			}).catch((err) => { if (ok) throw err; return null; });
+			}).catch((err) => { if (ok) throw step('Steam Cloud refused to finish the upload', err); return null; });
 		if (ok && !commit?.file_committed) throw new Error('Steam Cloud did not accept the file');
 	}
+	return 'uploaded';
 }
 
 // shot: { appid, name, data (Buffer, JPEG), thumb (Buffer, JPEG), width, height, created (unix s) }
 // Returns Steam's screenshot id.
+// Returns { id, existed } - existed: Steam already had this screenshot
 async function uploadScreenshot(client, shot, { privacy = 'private', caption = '', debug } = {}) {
 	const filename = `${shot.appid}/screenshots/${shot.name}`;
 	const thumbname = `${shot.appid}/screenshots/thumbnails/${shot.name}`;
+
 	await cloudUpload(client, filename, shot.data, shot.created, debug);
 	await cloudUpload(client, thumbname, shot.thumb, shot.created, debug);
-	const res = await sendMsg(client, EMsg.ClientUCMAddScreenshot, 'CMsgClientUCMAddScreenshot', 'CMsgClientUCMAddScreenshotResponse', {
+
+	let res;
+	try {
+		res = await sendMsg(client, EMsg.ClientUCMAddScreenshot, 'CMsgClientUCMAddScreenshot', 'CMsgClientUCMAddScreenshotResponse', {
 		appid: shot.appid,
 		filename,
 		thumbname,
@@ -72,8 +88,12 @@ async function uploadScreenshot(client, shot, { privacy = 'private', caption = '
 		permissions: PRIVACY[privacy] ?? PRIVACY.private,
 		caption: caption.slice(0, 140),
 	});
-	if (res.eresult !== EResult.OK) throw new Error(`Steam refused the screenshot: ${EResult[res.eresult] || res.eresult}`);
-	return String(res.screenshotid);
+	} catch (err) {
+		throw step('Adding it to your screenshot library', err);
+	}
+	if (res.eresult === EResult.DuplicateRequest) return { id: null, existed: true };
+	if (res.eresult !== EResult.OK) throw new Error(`Adding it to your screenshot library: Steam answered ${EResult[res.eresult] || res.eresult}`);
+	return { id: String(res.screenshotid), existed: false };
 }
 
 // Width and height from a JPEG's SOF header (no image library needed)
