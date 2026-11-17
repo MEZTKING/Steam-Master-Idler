@@ -23,18 +23,6 @@ const RECENT_MAX = 30;
 const isJpeg = (f) => /\.jpe?g$/i.test(f);
 const UNSET = new Set(['', '0', '18446744073709551615']);
 
-const defaults = {
-	enabled: false,
-	when: 'afterClose',   // afterClose | immediately
-	privacy: 'private',   // private | friends | unlisted | public
-	steamDir: '',         // override when Steam is installed somewhere unusual
-};
-
-function available(ctx) {
-	if (ctx.mobile) return { ok: false, reason: 'Needs the Steam app on the same computer, so it only works in the desktop app.' };
-	return { ok: true };
-}
-
 // 20240131235959_1.jpg -> unix seconds (local time), else null
 function timeFromName(name) {
 	const m = name.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
@@ -65,7 +53,8 @@ function create(ctx) {
 	st.queued ??= {};       // older screenshots the user asked to upload: key -> true
 	st.recent ??= [];
 	st.count ??= 0;
-	if (cfg.enabled && !st.baselineAt) st.baselineAt = Date.now();
+	// only screenshots taken after switching it on; older ones need "Upload older screenshots"
+	if (ctx.justEnabled || !st.baselineAt) { st.baselineAt = Date.now(); ctx.saveState(); }
 
 	let steamDir = null;
 	let root = null;
@@ -260,7 +249,6 @@ function create(ctx) {
 	}
 
 	async function check(force) {
-		if (!cfg.enabled && !force) return;
 		if (!ctx.isLoggedIn()) { view.error = null; return; }
 		try {
 			if (!(await locate())) {
@@ -273,7 +261,7 @@ function create(ctx) {
 			for (const appid of lastRunning) {
 				if (running.has(appid)) continue;
 				const n = pending.filter((s) => s.appid === appid).length;
-				if (n && cfg.enabled) ctx.log(`📷 ${gameName(appid)} closed. Uploading ${n} new screenshot${n === 1 ? '' : 's'}…`);
+				if (n) ctx.log(`📷 ${gameName(appid)} closed. Uploading ${n} new screenshot${n === 1 ? '' : 's'}…`);
 			}
 			lastRunning = running;
 			const go = ready(pending, running, force);
@@ -301,14 +289,10 @@ function create(ctx) {
 	function stop() { clearInterval(timer); timer = null; }
 
 	function snapshot() {
-		const avail = available(ctx);
 		const steamid = ctx.steamID64();
 		const failed = Object.entries(st.failed).filter(([, f]) => f.tries >= MAX_TRIES)
 			.map(([key, f]) => ({ key, game: gameName(Number(key.split('/')[0])), file: key.split('/')[1], error: f.error }));
 		return {
-			available: avail.ok,
-			reason: avail.reason || null,
-			settings: { ...cfg },
 			folder: root,
 			steamDir,
 			error: view.error,
@@ -330,33 +314,22 @@ function create(ctx) {
 	}
 
 	const routes = {
-		settings(body) {
-			if ('enabled' in body) {
-				const on = !!body.enabled;
-				if (on && !cfg.enabled) {
-					st.baselineAt = Date.now();   // only screenshots from now on; older ones need "Upload older"
-					ctx.saveState();
-					ctx.log('📷 Screenshot uploader on. New screenshots are uploaded after you close the game.');
-				}
-				if (!on && cfg.enabled) ctx.log('📷 Screenshot uploader off.');
-				cfg.enabled = on;
-			}
+		'POST settings'(body) {
 			if (body.when === 'afterClose' || body.when === 'immediately') cfg.when = body.when;
 			if (body.privacy in PRIVACY) cfg.privacy = body.privacy;
 			if (typeof body.steamDir === 'string') { cfg.steamDir = body.steamDir.trim().slice(0, 500); root = null; lookedUpAt = 0; }
 			ctx.saveConfig();
-			if (cfg.enabled) start(); else stop();
 			tick().catch(() => {});
 		},
 		// upload everything waiting right now, even if the game is still running
-		async 'upload-now'() {
+		async 'POST upload-now'() {
 			if (!ctx.isLoggedIn()) throw new Error('Log in first');
 			await locate(true);
 			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
 			tick(true).catch(() => {});
 		},
 		// also upload screenshots from before the uploader was switched on
-		async 'upload-older'() {
+		async 'POST upload-older'() {
 			if (!ctx.isLoggedIn()) throw new Error('Log in first');
 			await locate(true);
 			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
@@ -375,12 +348,12 @@ function create(ctx) {
 			tick(true).catch(() => {});
 			return { queued: n };
 		},
-		'retry-failed'() {
+		'POST retry-failed'() {
 			st.failed = {};
 			ctx.saveState();
 			tick(true).catch(() => {});
 		},
-		async 'open-folder'() {
+		async 'POST open-folder'() {
 			await locate(true);
 			if (!root) throw new Error("Couldn't find your Steam screenshots folder");
 			ctx.openPath(path.join(root, 'remote'));
@@ -391,17 +364,10 @@ function create(ctx) {
 		snapshot,
 		routes,
 		on: {
-			loggedOn() { root = null; lookedUpAt = 0; if (cfg.enabled) start(); },
+			loggedOn() { root = null; lookedUpAt = 0; start(); },
 			stop,
 		},
 	};
 }
 
-module.exports = {
-	id: 'screenshots',
-	name: 'Screenshot uploader',
-	description: 'Uploads the screenshots you take in games (F12) to your Steam library automatically once you close the game. Private by default.',
-	defaults,
-	available,
-	create,
-};
+module.exports = { create };

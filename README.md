@@ -17,8 +17,13 @@
 - **Runs in the tray:** closing the window keeps it idling. Desktop notifications tell you when targets are reached.
 - **Play while idling:** on Windows it idles through your Steam app, so you can keep playing other games.
 - Optional "start when I log in", custom status text and online/invisible status.
-- **Tools tab** with extra Steam features that use the same sign-in:
-  - **Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default. No more pressing Upload in Steam's screenshot manager.
+- **Tools tab** with extra Steam features that use the same sign-in. Each one has its own on/off switch, and a tool that's off isn't loaded at all:
+  - **📷 Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default.
+  - **🏆 Achievement manager:** see, unlock and lock any game's achievements, like Steam Achievement Manager, at once or one every N minutes. No game install needed.
+  - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, or drops to your price.
+  - **🎁 Sale event helper:** claims the free daily sale sticker and goes through your Discovery Queue during Steam sales, once a day.
+  - **🆓 Free game claimer:** paste store links or AppIDs of free games and they're added to your account.
+- **Light on resources:** the window is closed completely while the app sits in the tray (Settings → *Free memory while in the tray*), and the page stops refreshing while it's hidden.
 
 ## Settings
 
@@ -33,6 +38,7 @@ The idler never changes your online status unless you pick one under **Show me a
 | General | |
 |---|---|
 | Minimize to system tray | Minimizing or closing keeps idling in the tray. Off: closing quits. |
+| Free memory while in the tray | Closes the window completely while it's in the tray (about 100 MB less); opening it again takes a second. On by default. |
 | Dark theme | Switch between dark and light. |
 | Show Steam username | Show your name in the top bar. |
 | Prevent computer from sleeping | Keeps the computer awake while idling. |
@@ -54,7 +60,7 @@ No game is actually launched, so there is no VAC risk.
 
 ## Tools
 
-Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray.
+Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray. Every tool is **off** until you switch it on in its header. A tool that's off isn't loaded and runs no timers or requests.
 
 ### 📷 Screenshot uploader (desktop app)
 
@@ -76,9 +82,29 @@ Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools
 - Failed uploads are retried 3 times, then listed with a **Retry** button.
 - Screenshots of non-Steam games (shortcuts) aren't uploaded.
 
+### 🏆 Achievement manager
+
+1. Switch it on, type a game from your library (or an AppID) and press **Load**.
+2. Tick or untick achievements, or use **Unlock all** / **Lock all**, then press **Apply**.
+3. Or press **Unlock gradually** to unlock the ticked ones one at a time, every N minutes. The queue survives restarts and shows at the top; **Cancel** stops it.
+
+It reads and writes your achievements directly with Steam, so the game doesn't need to be installed and the Steam app doesn't need to run. If Steam only accepts the change from a session that's in the game, the idler briefly shows the game as running, then goes back to what it was idling. 🔒 *Protected* achievements can only be set by the game's own servers and can't be changed.
+
+### 🏷 Wishlist sale alerts
+
+Checks your wishlist every 1–24 hours (6 by default) and sends a notification when a game is discounted at least the set % (50% by default), or costs **My price** or less (set per game in the list). Each deal is announced once. Prices are in your account's store currency.
+
+### 🎁 Sale event helper
+
+Once per Steam day (the store's day starts at 10:00 Pacific): claims the free daily sale item (sticker) and goes through 1–3 Discovery Queues, which give event rewards during sales. **Run now** does it immediately. Outside a sale there's simply nothing to claim.
+
+### 🆓 Free game claimer
+
+Paste one or more store links, AppIDs, or package IDs (`sub/123`), then press **Add to my account**. Free-to-play games are added right away; for limited-time free-to-keep games it claims the game's free package from the store. Results stay in the list below.
+
 ### Adding a tool
 
-Each tool is one module in `src/tools/<id>/index.js` (see the comment at the top of `src/tools/index.js`), listed in `src/tools/index.js`, with its panel in the Tools section of `public/index.html`. A tool gets the shared Steam login, its own settings (`config.json` → `tools.<id>`), its own saved state (`state.json` → `tools.<id>`), the activity log and notifications, and its actions as `POST /api/tools/<id>/<action>`. `src/lib/steam-cm.js` sends raw Steam requests that steam-user has no method for.
+Each tool is listed in `src/tools/index.js` (name, description, default settings) and lives in `src/tools/<id>/index.js` (see the comment at the top of `src/tools/index.js`), with its panel in the Tools section of `public/index.html`. A tool gets the shared Steam login, its own settings (`config.json` → `tools.<id>`), its own saved state (`state.json` → `tools.<id>`), the activity log and notifications, and its actions as `POST|GET /api/tools/<id>/<action>`. The on/off switch, loading and unloading are handled for it. `src/lib/steam-cm.js` sends raw Steam requests that steam-user has no method for; `src/lib/store.js` gets store prices; `src/lib/web.js` calls Steam websites with the login's web session.
 
 ## Download
 
@@ -170,6 +196,8 @@ Settings → **Save debug report** writes one `.txt` file (to Downloads in the d
 The app logs in to Steam's client network with [steam-user](https://github.com/DoctorMcKay/node-steam-user), the same way a Steam client does, and reports the chosen games as being played. Steam then counts the playtime. Card drops are read from your badges page using the web session Steam issues at login.
 
 The screenshot uploader does what the Steam app does when you press Upload: it uploads the image and its thumbnail to Steam Cloud (`Cloud.ClientBeginFileUpload` / `ClientCommitFileUpload`, app 760), then registers the screenshot for the game with the visibility you chose (`ClientUCMAddScreenshot`). Finding the screenshot folders and `screenshots.vdf` follows the approach of [SteaScreeLoaded](https://github.com/Alsweider/SteaScreeLoaded).
+
+The achievement manager reads the game's stats schema and your progress with `ClientGetUserStats` and stores changes with `ClientStoreUserStats2` (achievements are bits of "achievement" stats), the same messages ArchiSteamFarm's achievement manager plugin uses. Wishlist, prices, Discovery Queue and the sale sticker use Steam's `Wishlist`, `StoreBrowse`, `Store` and `SaleItemRewards` services over the same connection.
 
 ---
 
