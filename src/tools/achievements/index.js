@@ -16,6 +16,57 @@ const STAT_GROUP_ACHIEVEMENTS = 5;
 const text = (v, lang = 'english') => (v == null ? '' : typeof v === 'object' ? (v[lang] ?? v.english ?? Object.values(v)[0] ?? '') : String(v));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function fetchStats(client, steamID64, appid) {
+	const res = await sendMsg(client, EMsg.ClientGetUserStats, 'CMsgClientGetUserStats', 'CMsgClientGetUserStatsResponse', {
+		game_id: String(appid), crc_stats: 0, schema_local_version: -1, steam_id_for_user: steamID64,
+	}, { untagged: { emsg: EMsg.ClientGetUserStatsResponse, match: (r) => String(r.game_id) === String(appid) } });
+	if (res.eresult !== EResult.OK) {
+		throw new Error(res.eresult === EResult.Fail || res.eresult === EResult.InvalidParam
+			? "This game has no achievements (or Steam doesn't share them)."
+			: `Steam couldn't load the achievements: ${EResult[res.eresult] || res.eresult}`);
+	}
+	return res;
+}
+
+function parse(appid, res, fallbackName) {
+	const kv = res.schema?.length ? parseBinaryKv(res.schema) : {};
+	const root = kv[String(appid)] || Object.values(kv)[0] || {};
+	const values = new Map((res.stats || []).map((s) => [s.stat_id, s.stat_value >>> 0]));
+	const times = new Map((res.achievement_blocks || []).map((b) => [b.achievement_id, b.unlock_time || []]));
+	const list = [];
+	for (const [statKey, stat] of Object.entries(root.stats || {})) {
+		const type = Number(stat.type_int ?? stat.type);
+		if (type !== STAT_ACHIEVEMENTS && type !== STAT_GROUP_ACHIEVEMENTS) continue;
+		const statId = Number(stat.id ?? statKey);
+		for (const [bitKey, a] of Object.entries(stat.bits || {})) {
+			const bit = Number(a.bit ?? bitKey);
+			const d = a.display || {};
+			const icon = d.icon ? `${ICON_BASE}/${appid}/${d.icon}` : null;
+			const unlocked = ((values.get(statId) || 0) >>> bit & 1) === 1;
+			const t = times.get(statId)?.[bit] || 0;
+			list.push({
+				id: `${statId}_${bit}`, statId, bit,
+				apiName: a.name || '',
+				name: text(d.name) || a.name || `Achievement ${statId}/${bit}`,
+				desc: text(d.desc),
+				hidden: String(d.hidden) === '1',
+				icon: unlocked ? icon : (d.icon_gray ? `${ICON_BASE}/${appid}/${d.icon_gray}` : icon),
+				// protected achievements can only be set by the game's own servers
+				protected: (Number(a.permission || stat.permission || 0) & 3) !== 0,
+				unlocked,
+				unlockedAt: unlocked && t ? t * 1000 : null,
+			});
+		}
+	}
+	return { appid, name: text(root.gamename) || fallbackName || `App ${appid}`, crc: res.crc_stats, values, achievements: list };
+}
+
+
+// a game's achievements with your progress: { appid, name, crc, values, achievements: [...] }
+async function loadAchievements(client, steamID64, appid, name) {
+	return parse(appid, await fetchStats(client, steamID64, appid), name);
+}
+
 function create(ctx) {
 	const st = ctx.state;
 	st.queue ??= [];        // gradual unlocks: [{ appid, statId, bit, name }]
@@ -27,53 +78,8 @@ function create(ctx) {
 
 	const me = () => ctx.steamID64();
 
-	async function fetchStats(appid) {
-		const res = await sendMsg(ctx.client, EMsg.ClientGetUserStats, 'CMsgClientGetUserStats', 'CMsgClientGetUserStatsResponse', {
-			game_id: String(appid), crc_stats: 0, schema_local_version: -1, steam_id_for_user: me(),
-		}, { untagged: { emsg: EMsg.ClientGetUserStatsResponse, match: (r) => String(r.game_id) === String(appid) } });
-		if (res.eresult !== EResult.OK) {
-			throw new Error(res.eresult === EResult.Fail || res.eresult === EResult.InvalidParam
-				? "This game has no achievements (or Steam doesn't share them)."
-				: `Steam couldn't load the achievements: ${EResult[res.eresult] || res.eresult}`);
-		}
-		return res;
-	}
-
-	function parse(appid, res) {
-		const kv = res.schema?.length ? parseBinaryKv(res.schema) : {};
-		const root = kv[String(appid)] || Object.values(kv)[0] || {};
-		const values = new Map((res.stats || []).map((s) => [s.stat_id, s.stat_value >>> 0]));
-		const times = new Map((res.achievement_blocks || []).map((b) => [b.achievement_id, b.unlock_time || []]));
-		const list = [];
-		for (const [statKey, stat] of Object.entries(root.stats || {})) {
-			const type = Number(stat.type_int ?? stat.type);
-			if (type !== STAT_ACHIEVEMENTS && type !== STAT_GROUP_ACHIEVEMENTS) continue;
-			const statId = Number(stat.id ?? statKey);
-			for (const [bitKey, a] of Object.entries(stat.bits || {})) {
-				const bit = Number(a.bit ?? bitKey);
-				const d = a.display || {};
-				const icon = d.icon ? `${ICON_BASE}/${appid}/${d.icon}` : null;
-				const unlocked = ((values.get(statId) || 0) >>> bit & 1) === 1;
-				const t = times.get(statId)?.[bit] || 0;
-				list.push({
-					id: `${statId}_${bit}`, statId, bit,
-					apiName: a.name || '',
-					name: text(d.name) || a.name || `Achievement ${statId}/${bit}`,
-					desc: text(d.desc),
-					hidden: String(d.hidden) === '1',
-					icon: unlocked ? icon : (d.icon_gray ? `${ICON_BASE}/${appid}/${d.icon_gray}` : icon),
-					// protected achievements can only be set by the game's own servers
-					protected: (Number(a.permission || stat.permission || 0) & 3) !== 0,
-					unlocked,
-					unlockedAt: unlocked && t ? t * 1000 : null,
-				});
-			}
-		}
-		return { appid, name: text(root.gamename) || ctx.gameName(appid), crc: res.crc_stats, values, achievements: list };
-	}
-
 	async function load(appid) {
-		const game = parse(appid, await fetchStats(appid));
+		const game = await loadAchievements(ctx.client, me(), appid, ctx.gameName(appid));
 		lastGame = game;
 		return game;
 	}
@@ -211,4 +217,4 @@ function create(ctx) {
 	};
 }
 
-module.exports = { create };
+module.exports = { create, loadAchievements };

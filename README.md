@@ -23,6 +23,13 @@
   - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, drops to your price, or may be delisted soon.
   - **🎁 Sale event helper:** claims the free daily sale sticker and goes through your Discovery Queue during Steam sales, once a day.
   - **🆓 Free game claimer:** paste store links or AppIDs of free games and they're added to your account.
+  - **🃏 Badges & boosters:** badge progress per game, a notification when a badge can be crafted, and booster packs you can make.
+  - **📊 Playtime reports:** a day-by-day history, a weekly summary on Monday, and games from your library worth a try.
+  - **🧹 Library cleanup:** never/barely played games, games you can still refund, and DLC for games you don't own.
+  - **💰 Market value:** what your cards, backgrounds, emoticons and boosters are worth (read-only).
+  - **💾 Backups:** playtime, achievements and screenshots saved to a folder, daily or weekly.
+  - **🖼 Profile rotator:** a different profile background / mini-profile / avatar frame on a schedule.
+- **Developer mode:** a 🛠 Developer tab with a live, searchable log of everything the app and Steam do, plus system info.
 - **In-app updates:** a banner tells you when a new version is out. On Windows (installer) and Linux (AppImage), one click downloads it, checks it and restarts into it.
 - **Light on resources:** the window is closed completely while the app sits in the tray (Settings → *Free memory while in the tray*), and the page stops refreshing while it's hidden.
 
@@ -75,7 +82,8 @@ Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools
 | Visibility on Steam | **Private** (default), Friends only, Unlisted or Public. |
 | Steam folder | Found automatically. Set it only if Steam is installed somewhere unusual. |
 
-- Only screenshots taken **after** you switch it on are uploaded automatically. **Upload N older screenshots** uploads the ones from before. Any that Steam's own `screenshots.vdf` already marks as uploaded are skipped. Skip this button if you've uploaded them yourself before, or they'll be on Steam twice.
+- Only screenshots taken **after** you switch it on are uploaded automatically. **Choose from N older screenshots…** opens a picker with thumbnails grouped by game (newest first): tick single screenshots or a whole game, click one to see it full size (← → to browse, Space to select), then **Upload**. Any that Steam's own `screenshots.vdf` marks as uploaded aren't listed, and any Steam already has are skipped.
+- Uploads go game by game, starting with the game you just closed, and each game is announced when it's done.
 - **Upload now** uploads everything waiting, even while the game is still running.
 - The idler must be signed in to the **same Steam account** as your Steam app. Screenshots are read from `Steam/userdata/<your account id>/760/remote/<appid>/screenshots`.
 - It knows a game has closed from the Steam app's `RunningAppID` (the registry on Windows, `registry.vdf` on Linux/macOS) and from Steam itself. While you idle through the Steam app, Steam reports the idled games instead of the one you play. Uploads then start once no new screenshot has been taken for 10 minutes.
@@ -104,6 +112,42 @@ Once per Steam day (the store's day starts at 10:00 Pacific): claims the free da
 ### 🆓 Free game claimer
 
 Paste one or more store links, AppIDs, or package IDs (`sub/123`), then press **Add to my account**. Free-to-play games are added right away; for limited-time free-to-keep games it claims the game's free package from the store. Results stay in the list below.
+
+### 🃏 Badges & boosters
+
+Reads your Badges pages every 6 hours: each game badge's level, cards collected of the set, and drops left. Badges you can craft are listed first, and you get a notification when one becomes craftable. With **Check the Booster Pack Creator too**, it also lists the booster packs you can make now and their gem price. It never crafts, buys or spends gems.
+
+### 📊 Playtime reports
+
+Every few hours it compares your library's playtime with the previous reading and books the difference on that day, building a history (kept 120 days) from the day you switch it on. Steam's playtime counts idling too. Shows a 7/30/90-day chart and per-game totals; every Monday a summary notification arrives. **Worth a try** picks a few games you never started or haven't played for a year, with a ▶ Play button that opens them in Steam.
+
+### 🧹 Library cleanup
+
+- **Refundable:** games bought in the last 14 days and played under 2 hours (Steam's refund rule), with the days left and a link to Steam's refund page. Gifts, keys and free licenses aren't counted.
+- **Never played**, **Barely played** (under N minutes, 30 by default), **Not played in a year**.
+- **Orphan DLC:** press **Scan my licenses** to find DLC on your account whose base game isn't.
+
+### 💰 Market value
+
+Reads your Steam community inventory (cards, foils, backgrounds, emoticons, boosters, gems) and the lowest Steam Market listing for each kind of item, in your wallet currency: total value, value after Steam's fees, by kind and per item. Prices are looked up about every 3.5 seconds (Steam limits this) and kept for a day. Read-only.
+
+### 💾 Backups
+
+Daily or weekly, into the folder you choose (default: `backups` in the data folder): `playtime.json` / `playtime.csv`, `achievements.json` (games played in the last 2 weeks, or every played game), and optionally new screenshots copied into `screenshots/<game>/` (each copied once). Keeps the newest N backups (10 by default). Runs a few minutes after signing in if one is overdue.
+
+### 🖼 Profile rotator
+
+Every 1 hour to 1 week, puts a different item you own on your profile: background, mini-profile background, avatar frame and/or animated avatar (pick which), at random or in order. Click items under **Show my items** to rotate only through those; the one you're wearing has a green dot.
+
+## Developer mode
+
+Settings → Troubleshooting → **Developer mode** adds a 🛠 **Developer** tab:
+
+- **System:** version, runtime, memory, uptime, Steam connection, idling state, tools that are on, update state, data folder.
+- **Live log:** everything the app, Steam and each tool log (the last 3000 entries), with timings for every action the page sends. Filter by level and category (click a chip to hide it, double-click to show only it), search (regex), follow/pause, copy what's shown, or save the debug report.
+- **Detailed Steam traffic:** also log every message to and from Steam (memory only). Turn it on while debugging.
+
+Nothing extra runs while the tab is closed. Passwords, tokens and cookie values are removed from everything logged.
 
 ### Adding a tool
 
