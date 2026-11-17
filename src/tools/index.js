@@ -44,8 +44,8 @@ const TOOLS = [
 		id: 'wishlist',
 		icon: '🏷',
 		name: 'Wishlist sale alerts',
-		description: 'Checks your wishlist and notifies you when a game goes on sale or drops below your price.',
-		defaults: { minDiscount: 50, everyHours: 6 },
+		description: 'Checks your wishlist and notifies you when a game goes on sale, drops below your price, or may be delisted soon.',
+		defaults: { minDiscount: 50, everyHours: 6, delistWatch: false },
 		load: () => require('./wishlist'),
 	},
 	{

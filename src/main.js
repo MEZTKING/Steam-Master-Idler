@@ -3,7 +3,9 @@
 // Desktop app: runs the idler server in-process and shows its page in a window.
 // Closing the window keeps idling in the tray; quit from the tray menu.
 
+const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, powerSaveBlocker, session } = require('electron');
 
 // one copy at a time - a second launch just focuses the existing window
@@ -128,6 +130,45 @@ function createTray() {
 	});
 }
 
+// In-app update (see lib/updater.js): the file is downloaded and checked; put it in place and restart.
+// macOS .dmg / Linux .deb: opened for you to finish (unsigned apps can't replace themselves there).
+async function installUpdate({ kind, file, version }) {
+	try {
+		if (kind === 'dmg' || kind === 'deb') {
+			const err = await shell.openPath(file);
+			if (err) throw new Error(err);
+			notify(`Version ${version} downloaded. Finish installing it in the window that opened, then restart the app.`);
+			return;
+		}
+		let relaunch = null;
+		if (kind === 'portable') {
+			// the running .exe can't be overwritten: put the new one next to it and start that
+			const dest = path.join(process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.env.PORTABLE_EXECUTABLE_FILE), path.basename(file));
+			fs.copyFileSync(file, dest);
+			relaunch = dest;
+		} else if (kind === 'appimage') {
+			const target = process.env.APPIMAGE;
+			fs.copyFileSync(file, `${target}.new`);
+			fs.chmodSync(`${target}.new`, 0o755);
+			fs.renameSync(`${target}.new`, target);   // fine while running on Linux
+			relaunch = target;
+		} else if (kind !== 'nsis') {
+			throw new Error(`can't install updates for ${kind}`);
+		}
+		quitting = true;
+		await server.stop();   // stop idling and log off cleanly first
+		if (kind === 'nsis') {
+			// silent install into the same folder; --force-run starts the new version afterwards
+			spawn(file, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+		} else {
+			app.relaunch({ execPath: relaunch, args: [] });
+		}
+		app.exit(0);
+	} catch (err) {
+		notify(`Couldn't install the update: ${err.message}`);
+	}
+}
+
 app.on('second-instance', showWindow);
 app.on('activate', showWindow);   // macOS dock click
 
@@ -144,6 +185,7 @@ app.whenReady().then(async () => {
 	url = await server.start(0);   // any free local port
 	server.events.on('notify', notify);
 	server.events.on('openPath', (dir) => shell.openPath(dir));
+	server.events.on('installUpdate', installUpdate);
 	server.events.on('session', updateSleepBlocker);
 	server.events.on('config', updateSleepBlocker);
 	// "Save debug report": put it in Downloads and show it in the file manager

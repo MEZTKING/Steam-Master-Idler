@@ -4,9 +4,17 @@
 // Every few hours: reads your wishlist and the current store prices (both over the Steam client
 // connection) and sends a notification for games that are discounted at least X %, or at/below the
 // price you set for them. Each deal is announced once.
+//
+// Optional "may be delisted soon": flags wishlist games that are no longer sold, and once a day reads
+// each game's recent Steam news (small JSON, no key) for delisting notices ("will be removed from
+// Steam", "last chance to buy", ...). Steam has no official flag for this, so it's a best guess.
 
 const { callService, defineTypes } = require('../../lib/steam-cm');
 const { getStoreItems } = require('../../lib/store');
+
+const DELIST_RE = /\b(delist(?:ed|ing)?|de-list(?:ed|ing)?|(?:will be|is being|are being) (?:removed|pulled|taken down) from (?:the )?(?:steam|store)|removed from (?:the )?steam store|no longer (?:be )?(?:available|sold|purchasable|for sale|on sale) (?:on|from|in) (?:the )?(?:steam|store)|(?:removed|pulled) from sale|last chance to (?:buy|purchase|grab|get)|leaving (?:the )?steam(?: store)?|license (?:is )?expir\w*|stop selling)\b/i;
+const NEWS_MAX_AGE = 180 * 86_400_000;
+const DELIST_EVERY = 24 * 3_600_000;
 
 defineTypes({
 	CWishlist_GetWishlist_Request: { fields: { steamid: { type: 'fixed64', id: 1 } } },
@@ -19,6 +27,10 @@ function create(ctx) {
 	const st = ctx.state;
 	st.targets ??= {};      // appid -> price in cents you'd pay
 	st.announced ??= {};    // appid -> final cents last announced
+	st.delist ??= {};       // appid -> { kind: 'gone'|'news', title, url, date, at }
+	st.delistAnnounced ??= {};
+	let delistTimer = null;
+	let delistBusy = false;
 	let items = [];         // last check (kept in memory only)
 	let timer = null;
 	let busy = false;
@@ -53,6 +65,7 @@ function create(ctx) {
 			for (const id of Object.keys(st.announced)) if (!deals.some((d) => d.appid === +id)) delete st.announced[id];
 			for (const d of fresh) st.announced[d.appid] = d.finalCents;
 			st.lastCheckAt = Date.now();
+			if (cfg.delistWatch) flagGone();
 			ctx.saveState();
 			error = null;
 			if (fresh.length) {
@@ -70,6 +83,80 @@ function create(ctx) {
 		}
 	}
 
+	// ----- may be delisted soon -----
+	// hidden from the store or unlisted (games that aren't out yet have no price but are still listed)
+	const gone = (it) => it.visible === false || it.unlisted === true;
+	function flagGone() {
+		for (const it of items) {
+			const cur = st.delist[it.appid];
+			if (gone(it)) {
+				if (cur?.kind !== 'gone') st.delist[it.appid] = { kind: 'gone', title: 'No longer for sale on Steam', at: Date.now() };
+			} else if (cur?.kind === 'gone') {
+				delete st.delist[it.appid];   // back on sale
+			}
+		}
+		announceDelist();
+	}
+
+	function announceDelist() {
+		const fresh = Object.entries(st.delist).filter(([id, d]) => !st.delistAnnounced[id] && items.some((i) => i.appid === +id))
+			.map(([id, d]) => ({ id: +id, d, name: items.find((i) => i.appid === +id)?.name || `App ${id}` }));
+		for (const f of fresh) st.delistAnnounced[f.id] = Date.now();
+		for (const id of Object.keys(st.delistAnnounced)) if (!st.delist[id]) delete st.delistAnnounced[id];
+		if (!fresh.length) return;
+		const leaving = fresh.filter((f) => f.d.kind === 'news');
+		const goneNow = fresh.filter((f) => f.d.kind === 'gone');
+		if (leaving.length) ctx.log(`⚠ May be delisted soon (from your wishlist): ${leaving.map((f) => f.name).join(', ')}. Buy before it's gone?`, true);
+		if (goneNow.length) ctx.log(`⚠ No longer sold on Steam (from your wishlist): ${goneNow.map((f) => f.name).join(', ')}.`, true);
+		ctx.saveState();
+	}
+
+	async function newsCheck(appid) {
+		const r = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=8&maxlength=800&format=json`,
+			{ headers: { 'User-Agent': 'steam-master-idler' } });
+		if (!r.ok) throw new Error(`HTTP ${r.status}`);
+		const news = (await r.json()).appnews?.newsitems || [];
+		for (const n of news) {
+			if (Date.now() - n.date * 1000 > NEWS_MAX_AGE) continue;
+			const text = `${n.title || ''} ${String(n.contents || '').replace(/<[^>]+>|\[[^\]]+\]/g, ' ')}`;
+			if (DELIST_RE.test(text)) return { kind: 'news', title: n.title, url: n.url, date: n.date * 1000, at: Date.now() };
+		}
+		return null;
+	}
+
+	async function delistScan() {
+		if (delistBusy || !cfg.delistWatch || !ctx.isLoggedIn() || !items.length) return;
+		delistBusy = true;
+		try {
+			for (const it of items) {
+				if (!cfg.delistWatch) break;
+				if (st.delist[it.appid]?.kind === 'gone') continue;
+				try {
+					const hit = await newsCheck(it.appid);
+					if (hit) st.delist[it.appid] = hit;
+					else if (st.delist[it.appid]?.kind === 'news') delete st.delist[it.appid];
+				} catch (err) {
+					ctx.debug(`news ${it.appid}: ${err.message}`);
+				}
+				await new Promise((r) => setTimeout(r, 1500));   // gentle on Steam's API
+			}
+			st.delistCheckedAt = Date.now();
+			announceDelist();
+			ctx.saveState();
+		} finally {
+			delistBusy = false;
+			scheduleDelist();
+		}
+	}
+
+	function scheduleDelist() {
+		clearTimeout(delistTimer);
+		delistTimer = null;
+		if (!cfg.delistWatch) return;
+		const wait = Math.max(5 * 60_000, (st.delistCheckedAt || 0) + DELIST_EVERY - Date.now());
+		delistTimer = setTimeout(delistScan, wait);
+	}
+
 	function schedule() {
 		clearTimeout(timer);
 		const every = cfg.everyHours * 3_600_000;
@@ -83,20 +170,30 @@ function create(ctx) {
 		snapshot: () => ({
 			busy, error, lastCheckAt: st.lastCheckAt || null, nextAt: nextAt(),
 			count: items.length, deals: items.filter(isDeal).length, onSale: items.filter((i) => i.discount > 0).length,
+			delist: cfg.delistWatch ? {
+				scanning: delistBusy, checkedAt: st.delistCheckedAt || null,
+				flagged: items.filter((i) => st.delist[i.appid]).length,
+			} : null,
 		}),
 		routes: {
 			'GET data'() {
 				return {
 					items: items.map((i) => ({ appid: i.appid, name: i.name, price: i.price, originalPrice: i.originalPrice, discount: i.discount,
-						finalCents: i.finalCents, endsAt: i.endsAt, free: i.free, deal: isDeal(i), target: st.targets[i.appid] ?? null }))
-						.sort((a, b) => b.deal - a.deal || b.discount - a.discount || a.name.localeCompare(b.name)),
+						finalCents: i.finalCents, endsAt: i.endsAt, free: i.free, deal: isDeal(i), target: st.targets[i.appid] ?? null,
+						delist: cfg.delistWatch ? st.delist[i.appid] || null : null }))
+						.sort((a, b) => !!b.delist - !!a.delist || b.deal - a.deal || b.discount - a.discount || a.name.localeCompare(b.name)),
 				};
 			},
 			'POST settings'(body) {
 				if ('minDiscount' in body) cfg.minDiscount = Math.max(1, Math.min(100, parseInt(body.minDiscount, 10) || 50));
 				if ('everyHours' in body) cfg.everyHours = [1, 3, 6, 12, 24].includes(+body.everyHours) ? +body.everyHours : 6;
+				if ('delistWatch' in body) {
+					cfg.delistWatch = !!body.delistWatch;
+					if (cfg.delistWatch) { flagGone(); st.delistCheckedAt = 0; }
+				}
 				ctx.saveConfig();
 				schedule();
+				scheduleDelist();
 			},
 			// { appid, price } price in your currency's units ("" clears it)
 			'POST target'(body) {
@@ -110,8 +207,8 @@ function create(ctx) {
 		},
 		on: {
 			// check soon after signing in (deals already announced aren't announced again)
-			loggedOn() { clearTimeout(timer); timer = setTimeout(() => check(), 30_000); },
-			stop() { clearTimeout(timer); timer = null; items = []; },
+			loggedOn() { clearTimeout(timer); timer = setTimeout(() => check().then(scheduleDelist), 30_000); },
+			stop() { clearTimeout(timer); clearTimeout(delistTimer); timer = delistTimer = null; items = []; },
 		},
 	};
 }

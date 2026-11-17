@@ -245,6 +245,7 @@
 	.steam-check.ok { color: var(--good); }
 	.warn-text { color: var(--warn) !important; }
 	.tag.bad { color: var(--warn); }
+	a.tag { text-decoration: none; }
 	.steam-check.bad { color: var(--warn); }
 	/* all-time stats */
 	.h2-note { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
@@ -299,6 +300,11 @@
 		.wl-row { flex-wrap: wrap; }
 		.wl-row .name { flex-basis: calc(100% - 80px); }
 	}
+	/* update banner */
+	#update-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 16px; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+	#update-banner .msg { flex: 1; min-width: 180px; }
+	#update-banner progress { width: 120px; accent-color: var(--accent); }
+	#update-notes { white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 200px; overflow-y: auto; width: 100%; margin: 4px 0 0; }
 	.hidden { display: none !important; }
 </style>
 </head>
@@ -314,6 +320,15 @@
 </header>
 
 <main>
+	<div id="update-banner" class="panel hidden">
+		<span class="msg">⬆ <b id="upd-title"></b> <span class="muted" id="upd-sub"></span></span>
+		<progress id="upd-progress" class="hidden" max="1" value="0"></progress>
+		<button class="linkish" id="upd-notes-btn">What's new</button>
+		<button class="small primary" id="upd-go">Update</button>
+		<button class="small" id="upd-later" title="Hide until the next version">Later</button>
+		<pre id="update-notes" class="hidden"></pre>
+	</div>
+
 	<nav class="viewtabs hidden" id="viewtabs">
 		<button data-view="idler" class="active">🎮 Idler</button>
 		<button data-view="tools">🧰 Tools<span class="badge hidden" id="tools-badge"></span></button>
@@ -562,7 +577,7 @@
 		<div class="panel tool" data-tool="wishlist">
 			<h2><span class="tool-ic">🏷</span> Wishlist sale alerts<span class="spacer"></span>
 				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
-			<div class="tool-desc">Checks your wishlist every few hours and notifies you when a game goes on sale, or drops to the price you set for it. Each deal is announced once.</div>
+			<div class="tool-desc">Checks your wishlist every few hours and notifies you when a game goes on sale, drops to the price you set for it, or (optional) may be delisted soon. Each one is announced once.</div>
 			<div class="tool-body hidden">
 				<div id="wl-status" class="steam-check"></div>
 				<div class="panel-body">
@@ -572,6 +587,8 @@
 						<label>Check every
 							<select id="wl-every"><option value="1">hour</option><option value="3">3 hours</option><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">day</option></select></label>
 					</div>
+					<label class="opt"><input type="checkbox" id="wl-delist"><span>Warn me when a game may be delisted soon
+						<small>Flags wishlist games that are no longer sold, and once a day reads each game's Steam news for delisting notices ("will be removed from Steam", "last chance to buy"…). Steam has no official signal for this, so it's a best guess.</small></span></label>
 					<div class="actions"><button class="primary" id="wl-check">↻ Check now</button>
 						<input id="wl-filter" placeholder="Filter…" style="width:160px">
 						<span class="error" id="wl-error"></span></div>
@@ -660,6 +677,17 @@
 			<label class="opt"><input type="radio" name="cardOrder" value="default"><span>Default (alphabetical order)</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="mostDrops"><span>Games with the most card drops first</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="leastDrops"><span>Games with the fewest card drops first</span></label>
+		</fieldset>
+		<fieldset>
+			<legend>Updates</legend>
+			<label class="opt"><input type="checkbox" data-k="checkUpdates"><span>Check for updates
+				<small>One small request to GitHub after starting and every 12 hours.</small></span></label>
+			<label class="opt" id="opt-autoupdate"><input type="checkbox" data-k="autoUpdate"><span>Download updates in the background
+				<small>The new version installs when you press Restart to update.</small></span></label>
+			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
+				<button class="small" id="upd-check">Check now</button>
+				<span class="muted" id="upd-status" style="font-size:12px"></span>
+			</div>
 		</fieldset>
 		<fieldset>
 			<legend>Troubleshooting</legend>
@@ -838,7 +866,7 @@ $('#settings').addEventListener('change', (e) => {
 	else if (el.dataset.k) setPref({ [el.dataset.k]: el.checked });
 	else if (el.type === 'radio') setPref({ [el.name]: el.value });
 });
-const openSettings = () => { fillSettings(); $('#settings').showModal(); };
+const openSettings = () => { fillSettings(); if (S.update) renderUpdate(); $('#settings').showModal(); };
 $('#open-settings').onclick = openSettings;
 $('#cs-change').onclick = openSettings;
 $('#close-settings').onclick = () => $('#settings').close();
@@ -1404,6 +1432,7 @@ function wlRenderList() {
 		: list.slice(0, 300).map((i) => `<div class="row wl-row ${i.deal ? 'deal' : ''}">
 			<img class="icon" src="https://cdn.akamai.steamstatic.com/steam/apps/${i.appid}/capsule_sm_120.jpg" alt="" loading="lazy" style="width:56px;object-fit:cover" onerror="this.style.visibility='hidden'">
 			<a class="name" href="https://store.steampowered.com/app/${i.appid}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" title="${esc(i.name)}">${esc(i.name)}</a>
+			${i.delist ? (i.delist.url ? `<a class="tag bad" href="${esc(i.delist.url)}" target="_blank" rel="noopener" title="${esc(i.delist.title || '')}">⚠ may be delisted</a>` : `<span class="tag bad" title="${esc(i.delist.title || '')}">⚠ no longer sold</span>`) : ''}
 			${i.discount ? `<span class="disc">−${i.discount}%</span>` : ''}
 			<span class="price hours">${i.free ? 'Free' : i.price ? `${i.discount && i.originalPrice ? `<s>${esc(i.originalPrice)}</s>` : ''}${esc(i.price)}` : '—'}</span>
 			<input type="number" min="0" step="0.01" placeholder="My price" title="Notify me when it costs this much or less" data-wl="${i.appid}" value="${i.target != null ? (i.target / 100).toFixed(2) : ''}">
@@ -1413,16 +1442,18 @@ $('#wl-filter').addEventListener('input', () => { $('#wl-list').dataset.k = ''; 
 $('#wl-list').addEventListener('change', (e) => { const id = e.target.dataset.wl; if (id) act('wishlist', 'target', { appid: +id, price: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; }); });
 $('#wl-min').onchange = (e) => act('wishlist', 'settings', { minDiscount: e.target.value }, null, '#wl-error').then(() => { wlKey = ''; });
 $('#wl-every').onchange = (e) => act('wishlist', 'settings', { everyHours: e.target.value }, null, '#wl-error');
+$('#wl-delist').onchange = (e) => act('wishlist', 'settings', { delistWatch: e.target.checked }, null, '#wl-error').then(() => { wlKey = ''; });
 $('#wl-check').onclick = (e) => act('wishlist', 'check', {}, e.target, '#wl-error').then(() => { wlKey = ''; });
 TOOL_RENDER.wishlist = (t) => {
 	setIfIdle($('#wl-min'), t.settings.minDiscount);
 	setIfIdle($('#wl-every'), t.settings.everyHours);
+	if (document.activeElement !== $('#wl-delist')) $('#wl-delist').checked = !!t.settings.delistWatch;
 	$('#wl-check').disabled = t.busy;
 	const st = $('#wl-status');
 	st.className = 'steam-check' + (t.error ? ' bad' : t.deals ? ' ok' : '');
 	st.textContent = t.error ? `⚠ ${t.error}` : t.busy ? 'Checking your wishlist…' : !t.lastCheckAt ? 'First check in a moment…'
-		: `${t.deals ? `🔥 ${t.deals} deal(s) for you. ` : ''}${t.onSale} of ${t.count} wishlist games on sale. Checked ${ago(t.lastCheckAt)}, next check in ${inTime(t.nextAt)}.`;
-	if (t.lastCheckAt) wlFetch(t);
+		: `${t.deals ? `🔥 ${t.deals} deal(s) for you. ` : ''}${t.delist?.flagged ? `⚠ ${t.delist.flagged} may be delisted. ` : ''}${t.onSale} of ${t.count} wishlist games on sale. Checked ${ago(t.lastCheckAt)}, next check in ${inTime(t.nextAt)}.${t.delist?.scanning ? ' Reading news for delisting notices…' : ''}`;
+	if (t.lastCheckAt) wlFetch({ lastCheckAt: `${t.lastCheckAt}|${t.delist?.checkedAt}|${t.delist?.flagged}` });
 };
 
 // ----- 🎁 sale event helper -----
@@ -1455,6 +1486,52 @@ TOOL_RENDER.freegames = (t) => {
 	$('#fg-clear').classList.toggle('hidden', !t.history?.length);
 	setHtml($('#fg-history'), (t.history || []).map((r) => `<div class="row"><span class="${r.ok ? 'res-ok' : 'res-bad'}">${r.ok ? '✔' : '⚠'}</span>
 		<div class="name" title="${esc(r.input)}">${esc(r.name)} <span class="muted">· ${esc(r.text)}</span></div><span class="hours">${ago(r.at)}</span></div>`).join(''));
+};
+
+// ---------- updates ----------
+
+const fmtMB = (b) => `${(b / 1048576).toFixed(1)} MB`;
+function renderUpdate() {
+	const u = S.update;
+	if (!u) return;
+	let dismissed = null;
+	try { dismissed = localStorage.getItem('updateLater'); } catch {}
+	const show = !!u.available && dismissed !== u.available;
+	$('#update-banner').classList.toggle('hidden', !show);
+	if (u.available) {
+		$('#upd-title').textContent = `Version ${u.available} is available`;
+		$('#upd-sub').textContent = u.download ? `Downloading… ${fmtMB(u.download.done)}${u.download.total ? ` of ${fmtMB(u.download.total)}` : ''}`
+			: u.ready ? 'Downloaded and ready.' : `(you have ${u.current})`;
+		$('#upd-progress').classList.toggle('hidden', !u.download);
+		if (u.download?.total) $('#upd-progress').value = u.download.done / u.download.total;
+		$('#upd-go').textContent = u.action === 'install' ? (u.ready ? 'Restart to update' : 'Update now')
+			: u.action === 'open' ? 'Download & open' : u.action === 'link' ? 'Download update' : 'Open release page';
+		$('#upd-go').disabled = !!u.download;
+		if (!$('#update-notes').dataset.k || $('#update-notes').dataset.k !== u.available) {
+			$('#update-notes').dataset.k = u.available;
+			$('#update-notes').textContent = u.notes || 'See the release page for details.';
+		}
+	}
+	$('#opt-autoupdate').classList.toggle('hidden', !(u.kind === 'nsis' || u.kind === 'appimage'));
+	$('#upd-check').disabled = u.checking;
+	$('#upd-status').textContent = u.checking ? 'Checking…' : u.error ? `⚠ ${u.error}`
+		: u.available ? `Version ${u.available} is available.` : u.checkedAt ? `You're up to date (v${u.current}). Checked ${new Date(u.checkedAt).toLocaleTimeString()}.` : `You have v${u.current}.`;
+}
+$('#upd-notes-btn').onclick = () => $('#update-notes').classList.toggle('hidden');
+$('#upd-later').onclick = () => { try { localStorage.setItem('updateLater', S.update.available); } catch {} renderUpdate(); };
+$('#upd-go').onclick = async (e) => {
+	const u = S.update;
+	if (u.action === 'link') { location.href = u.downloadUrl; return; }        // Android: the browser downloads the APK
+	if (u.action === 'page') { window.open(u.releaseUrl, '_blank'); return; }
+	if (u.action === 'install' && !u.ready && !confirm(`Download version ${u.available} (${u.size ? fmtMB(u.size) : 'a few MB'}) and restart into it? Idling stops for a moment and picks up again after the restart.`)) return;
+	e.target.disabled = true;
+	try { await api('/api/update/install', {}); } catch (err) { alert(err.message); }
+	finally { e.target.disabled = false; poll(); }
+};
+$('#upd-check').onclick = async (e) => {
+	e.target.disabled = true;
+	try { await api('/api/update/check', {}); } catch (err) { $('#upd-status').textContent = `⚠ ${err.message}`; }
+	finally { e.target.disabled = false; poll(); }
 };
 
 // ---------- main render ----------
@@ -1520,6 +1597,7 @@ function render() {
 	}
 
 	if (view === 'tools') renderTools();
+	renderUpdate();
 
 	if (!settingsLoaded) {
 		settingsLoaded = true;

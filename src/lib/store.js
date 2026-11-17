@@ -22,6 +22,7 @@ async function getStoreItems(client, appids, { country = 'US', allOptions = fals
 				appid: it.appid || it.id,
 				name: it.name || `App ${it.appid || it.id}`,
 				visible: it.success === 1 && it.visible !== false,
+				unlisted: !!it.unlisted,
 				free: !!it.is_free,
 				freeTemporarily: !!it.is_free_temporarily,
 				price: best ? best.formatted_final_price || null : null,

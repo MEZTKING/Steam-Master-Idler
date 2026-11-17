@@ -18,6 +18,7 @@ const { fetchCardDrops } = require('./lib/cards');
 const { createDebugLog } = require('./lib/debuglog');
 const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
 const { createTools } = require('./tools');
+const { createUpdater } = require('./lib/updater');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -66,6 +67,8 @@ const config = Object.assign({
 	showUsername: true,
 	minimizeToTray: true,  // desktop app only
 	freeMemoryInTray: true, // desktop app only: close the window fully while it's in the tray
+	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
+	autoUpdate: true,      // Windows installer / AppImage: download it in the background, install on restart
 	preventSleep: true,    // desktop app only
 	shutdownWhenDone: false,
 	games: [],
@@ -799,6 +802,19 @@ const tools = createTools({
 	},
 });
 
+// ---------- updates ----------
+
+const updater = createUpdater({
+	version: VERSION,
+	dataDir: DATA_DIR,
+	desktop: process.env.IDLER_DESKTOP === '1',
+	mobile: MOBILE,
+	log,
+	debug: (msg) => debugLog.write('update', msg),
+	events,   // 'installUpdate' -> main.js installs and restarts
+	getConfig: () => config,
+});
+
 // ---------- http api ----------
 
 function statsSnapshot() {
@@ -837,6 +853,7 @@ function snapshot(query = {}) {
 		cards: { ...app.cards, ready: !!webCookies },
 		stats: statsSnapshot(),
 		tools: tools.snapshot(),
+		update: updater.snapshot(),
 		session: session && {
 			paused: session.paused,
 			blocked: session.blocked,
@@ -890,7 +907,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
@@ -910,6 +927,7 @@ function applySettings(body) {
 	if ('maxConcurrent' in body) config.maxConcurrent = Math.min(STEAM_MAX_GAMES, Math.max(1, parseInt(body.maxConcurrent, 10) || STEAM_MAX_GAMES));
 	if (body.games) config.games = cleanGames(body.games);
 	writeJson(CONFIG_FILE, config);
+	if ('checkUpdates' in body) updater.schedule();
 }
 
 const routes = {
@@ -1132,6 +1150,10 @@ const routes = {
 
 	'POST /api/cancel-shutdown': () => { cancelShutdown(); },
 
+	'POST /api/update/check': () => updater.check(),
+	'POST /api/update/download': async () => { await updater.download(); },
+	'POST /api/update/install': () => updater.install(),
+
 	'POST /api/stop': () => { stopSession('Stopped.'); },
 
 	// add a game to the running session (it starts right away if there's a free slot)
@@ -1237,6 +1259,7 @@ function start(port = PORT) {
 			debugLog.write('info', `=== start v${VERSION} ${process.platform} ${process.arch} electron=${process.versions.electron || '-'} node=${process.versions.node} desktop=${process.env.IDLER_DESKTOP === '1'} ===`);
 			log(`GUI running at ${url}`);
 			loginWithSavedSession();
+			updater.start();
 			resolve(url);
 		});
 	});
@@ -1246,6 +1269,7 @@ function start(port = PORT) {
 function stop() {
 	stopSession('Shutting down.');
 	tools.emit('stop');
+	updater.stop();
 	return new Promise((resolve) => setTimeout(() => {
 		client.logOff();
 		server.close();

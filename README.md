@@ -20,9 +20,10 @@
 - **Tools tab** with extra Steam features that use the same sign-in. Each one has its own on/off switch, and a tool that's off isn't loaded at all:
   - **📷 Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default.
   - **🏆 Achievement manager:** see, unlock and lock any game's achievements, like Steam Achievement Manager, at once or one every N minutes. No game install needed.
-  - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, or drops to your price.
+  - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, drops to your price, or may be delisted soon.
   - **🎁 Sale event helper:** claims the free daily sale sticker and goes through your Discovery Queue during Steam sales, once a day.
   - **🆓 Free game claimer:** paste store links or AppIDs of free games and they're added to your account.
+- **In-app updates:** a banner tells you when a new version is out. On Windows (installer) and Linux (AppImage), one click downloads it, checks it and restarts into it.
 - **Light on resources:** the window is closed completely while the app sits in the tray (Settings → *Free memory while in the tray*), and the page stops refreshing while it's hidden.
 
 ## Settings
@@ -94,6 +95,8 @@ It reads and writes your achievements directly with Steam, so the game doesn't n
 
 Checks your wishlist every 1–24 hours (6 by default) and sends a notification when a game is discounted at least the set % (50% by default), or costs **My price** or less (set per game in the list). Each deal is announced once. Prices are in your account's store currency.
 
+**Warn me when a game may be delisted soon** (off by default): flags wishlist games that are no longer sold on Steam, and once a day reads each game's recent Steam news for delisting notices ("will be removed from Steam", "last chance to buy", license expiring…). Flagged games are listed first with a link to the notice. Steam has no official signal for upcoming delistings, so this is a best guess.
+
 ### 🎁 Sale event helper
 
 Once per Steam day (the store's day starts at 10:00 Pacific): claims the free daily sale item (sticker) and goes through 1–3 Discovery Queues, which give event rewards during sales. **Run now** does it immediately. Outside a sale there's simply nothing to claim.
@@ -146,6 +149,19 @@ Install it (allow installing from your browser/files app when Android asks), ope
 Close the window and it keeps going in the tray. Choose **Quit** from the tray menu to stop. Quitting always takes you out of "in-game" status.
 
 Your settings and login token are stored in your user data folder (tray → *Open data folder*). Delete `.session` there, or click **Log out**, to forget the login.
+
+## Updates
+
+The app checks GitHub for a new release shortly after starting and every 12 hours: one small request, nothing running in between. Turn it off under Settings → **Updates**. When there's a new version, a banner shows at the top:
+
+| Installed as | What **Update** does |
+|---|---|
+| Windows installer | Downloads it (in the background if *Download updates in the background* is on), checks its size and checksum, installs silently and restarts. Idling resumes after the restart. |
+| Windows portable | Saves the new portable `.exe` next to the old one and starts it. Delete the old one afterwards. |
+| Linux AppImage | Replaces the AppImage in place and restarts. |
+| macOS / Linux `.deb` | Downloads the `.dmg`/`.deb` and opens it; you finish the install (unsigned apps can't replace themselves there). |
+| Android | Opens the right APK in your browser; tap it to install over the old version. |
+| From source | Shows the release page; update with `git pull && npm install`. |
 
 ## Run from source
 
