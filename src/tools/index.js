@@ -18,6 +18,7 @@
 //
 // ctx gives a tool: client (steam-user), log(msg, notify), debug(msg), config (its settings, saved
 // in config.json under tools.<id>), state (its own object in state.json), saveConfig(), saveState(),
+// toolState(id) / toolConfig(id) / callTool(id, method, action, body) for another tool,
 // isLoggedIn(), accountId(), steamID64(), country(), web() -> { sessionID, cookies } | null,
 // gameName(appid), gameIcon(appid), ownsApp(appid), playingElsewhere(), canSeePlaying(),
 // withGamePlaying(appid, fn), openPath(dir), desktop, mobile.
@@ -31,6 +32,15 @@ const TOOLS = [
 		desktopOnly: 'Needs the Steam app on the same computer, so it only works in the desktop app.',
 		defaults: { when: 'afterClose', privacy: 'private', steamDir: '' },
 		load: () => require('./screenshots'),
+	},
+	{
+		id: 'gallery',
+		icon: '🗂',
+		name: 'Screenshot manager',
+		description: 'All your Steam screenshots in one gallery: like or dislike them, back up the ones you like, move the rest to a trash you can restore from.',
+		desktopOnly: 'Needs the Steam app on the same computer, so it only works in the desktop app.',
+		defaults: { autoBackup: 'liked', folder: '' },
+		load: () => require('./gallery'),
 	},
 	{
 		id: 'achievements',
@@ -135,6 +145,10 @@ function createTools(host) {
 			state,
 			log: (msg, notify) => host.log(msg, notify),
 			debug: (msg) => host.debugLog.write(def.id, msg),
+			// another tool's saved state / settings (read them, don't replace them), and its actions
+			toolState: (id) => (host.state.tools[id] ??= {}),
+			toolConfig: (id) => host.config.tools[id] || {},
+			callTool: (id, method, action, body) => route(method, id, action, body),
 		};
 		const inst = def.load().create(ctx);
 		running.set(def.id, inst);

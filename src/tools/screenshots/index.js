@@ -12,7 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const { findSteamDir, screenshotsRoot, runningAppId } = require('../../lib/steam-local');
 const { parseVdf } = require('../../lib/vdf');
-const { uploadScreenshot, jpegSize, PRIVACY } = require('./uploader');
+const { uploadScreenshot, listCloudFiles, jpegSize, PRIVACY } = require('./uploader');
+const { getStoreItems } = require('../../lib/store');
 
 const TICK_MS = 20_000;
 const SETTLE_MS = 15_000;            // a new file must be this old (Steam is done writing it + its thumbnail)
@@ -53,6 +54,8 @@ function create(ctx) {
 	st.queued ??= {};       // older screenshots the user asked to upload: key -> true
 	st.recent ??= [];
 	st.count ??= 0;
+	st.deniedApps ??= {};   // appid -> { at, error }: Steam refuses screenshots for it, don't keep trying
+	st.names ??= {};        // appid -> store name, for games that aren't in your library
 	// only screenshots taken after switching it on; older ones need "Upload older screenshots"
 	if (ctx.justEnabled || !st.baselineAt) { st.baselineAt = Date.now(); ctx.saveState(); }
 
@@ -66,8 +69,32 @@ function create(ctx) {
 	const dirCache = new Map();   // dir -> { mtimeMs, files: [{ name, mtimeMs, size }] }
 	let vdfCache = { mtimeMs: 0, done: new Set() };
 	const view = { pending: [], waiting: [], backlog: 0, steamUploaded: 0, running: [], current: null, lastScanAt: null, error: null };
+	let batch = [];   // the screenshots of the upload run in progress, in upload order
 
-	const gameName = (appid) => ctx.gameName(appid);
+	const gameName = (appid) => { const n = ctx.gameName(appid); return /^App \d+$/.test(n) && st.names[appid] ? st.names[appid] : n; };
+	// store names for games that aren't in your library (demos, playtests, refunded games)
+	async function resolveNames(appids) {
+		const missing = [...new Set(appids)].filter((a) => /^App \d+$/.test(ctx.gameName(a)) && !st.names[a]);
+		if (!missing.length || !ctx.isLoggedIn()) return;
+		try {
+			const items = await getStoreItems(ctx.client, missing, { country: ctx.country?.() || 'US' });
+			for (const [id, it] of items) if (it.name && !/^App \d+$/.test(it.name)) st.names[id] = it.name;
+		} catch (err) { ctx.debug(`store names: ${err.message}`); }
+	}
+
+	// what's in your Steam Cloud already (cached a few minutes), so nothing is sent twice
+	let cloud = { at: 0, files: null };
+	async function cloudFiles(force = false) {
+		if (!force && cloud.files && Date.now() - cloud.at < 10 * 60_000) return cloud.files;
+		try {
+			cloud = { at: Date.now(), files: await listCloudFiles(ctx.client) };
+			ctx.debug(`Steam Cloud has ${cloud.files.size} screenshot files`);
+		} catch (err) {
+			ctx.debug(`couldn't list Steam Cloud files (${err.message}); uploading without the check`);
+			cloud = { at: Date.now(), files: null };
+		}
+		return cloud.files;
+	}
 
 	async function locate(force = false) {
 		if (!force && root && Date.now() - lookedUpAt < 5 * 60_000) return root;
@@ -175,6 +202,44 @@ function create(ctx) {
 		return games.sort((a, b) => b.shots[0].takenAt - a.shots[0].takenAt);
 	}
 
+	// every screenshot on this PC (Steam games only)
+	function allLocal() {
+		const out = [];
+		let dirs = [];
+		try { dirs = fs.readdirSync(path.join(root, 'remote')).filter((d) => /^\d+$/.test(d) && Number(d) < NON_STEAM); } catch { /* none */ }
+		for (const d of dirs) {
+			for (const f of listDir(path.join(root, 'remote', d, 'screenshots'))) out.push({ key: `${d}/${f.name}`, appid: +d, dir: path.join(root, 'remote', d, 'screenshots'), ...f });
+		}
+		return out;
+	}
+
+	// Compare with what's really in your Steam Cloud (uploads by the Steam app count too): mark those as
+	// uploaded, and report what's missing. Returns null when Steam Cloud can't be listed.
+	async function checkSteam(force = false) {
+		const files = await cloudFiles(force);
+		if (!files) return null;
+		const local = allLocal();
+		let found = 0;
+		for (const s of local) {
+			if (st.uploaded[s.key] || !files.has(`${s.appid}/screenshots/${s.name}`)) continue;
+			st.uploaded[s.key] = { at: Date.now(), id: null, existed: true, foundInCloud: true };
+			delete st.failed[s.key];
+			delete st.queued[s.key];
+			found++;
+		}
+		if (found) ctx.saveState();
+		const missing = local.filter((s) => !st.uploaded[s.key] && !st.deniedApps[s.appid]);
+		await resolveNames(missing.map((s) => s.appid));
+		const games = {};
+		for (const s of missing) {
+			const g = (games[s.appid] ??= { appid: s.appid, game: gameName(s.appid), older: [], waiting: 0 });
+			if (s.mtimeMs < (st.baselineAt || Infinity) && !st.queued[s.key]) g.older.push(s.key); else g.waiting++;
+		}
+		st.lastSteamCheck = { at: Date.now(), cloudFiles: files.size, local: local.length, found, missing: missing.length };
+		ctx.saveState();
+		return { ...st.lastSteamCheck, games: Object.values(games).map((g) => ({ ...g, missingCount: g.older.length + g.waiting })).sort((a, b) => b.missingCount - a.missingCount) };
+	}
+
 	function canRetry(key) {
 		const f = st.failed[key];
 		if (!f) return true;
@@ -208,7 +273,7 @@ function create(ctx) {
 		const thumb = fs.existsSync(thumbFile) ? fs.readFileSync(thumbFile) : (makeThumb(file) || data);
 		const created = timeFromName(s.name) || Math.floor(s.mtimeMs / 1000);
 		const { id, existed } = await uploadScreenshot(ctx.client, { appid: s.appid, name: s.name, data, thumb, ...size, created },
-			{ privacy: cfg.privacy, debug: (m) => ctx.debug(m) });
+			{ privacy: cfg.privacy, debug: (m) => ctx.debug(m), onStep: (step) => { if (view.current) view.current.step = step; }, cloudFiles: cloud.files });
 		st.uploaded[s.key] = { at: Date.now(), id, existed: existed || undefined };
 		delete st.failed[s.key];
 		delete st.queued[s.key];
@@ -235,7 +300,9 @@ function create(ctx) {
 	async function uploadBatch(list) {
 		busy = true;
 		const privacyName = { private: 'private', friends: 'friends only', unlisted: 'unlisted', public: 'public' }[cfg.privacy];
-		const games = byGameOrder(list);
+		const games = byGameOrder(list.filter((s) => !st.deniedApps[s.appid]));
+		batch = games.flat();
+		await Promise.all([cloudFiles(), resolveNames(batch.map((s) => s.appid))]);
 		let already = 0;
 		let done = 0;
 		try {
@@ -247,13 +314,21 @@ function create(ctx) {
 				for (let i = 0; i < shots.length; i++) {
 					const s = shots[i];
 					if (!ctx.isLoggedIn()) { stop = true; break; }
-					view.current = { game: gameName(appid), done: i, total: shots.length, gameNo: gi + 1, games: games.length, overall: done, overallTotal: list.length };
+					view.current = { key: s.key, file: s.name, appid, game: gameName(appid), done: i, total: shots.length, gameNo: gi + 1, games: games.length, overall: done, overallTotal: list.length, step: 'image', startedAt: Date.now() };
 					done++;
 					try {
 						if (await uploadOne(s)) { already++; continue; }
 						n++;
 					} catch (err) {
-						const f = st.failed[s.key] || { tries: 0 };
+						if (err.appDenied) {
+						// one refusal covers the whole game: skip its other screenshots without sending them
+						st.deniedApps[appid] = { at: Date.now(), error: err.message };
+						for (const o of shots) st.failed[o.key] = { tries: MAX_TRIES, at: Date.now(), error: err.message };
+						ctx.saveState();
+						ctx.log(`📷 Steam won't add ${gameName(appid)} screenshots to your library (it isn't in your library, or is a demo, playtest or tool). Skipping its ${shots.length} screenshot${shots.length === 1 ? '' : 's'}; "Retry" tries again.`);
+						break;
+					}
+					const f = st.failed[s.key] || { tries: 0 };
 						st.failed[s.key] = { tries: err.permanent ? MAX_TRIES : f.tries + 1, at: Date.now(), error: err.message };
 						ctx.saveState();
 						ctx.debug(`upload ${s.key} failed: ${err.stack || err.message}`);
@@ -267,6 +342,7 @@ function create(ctx) {
 		} finally {
 			busy = false;
 			view.current = null;
+			batch = [];
 		}
 		if (already) ctx.log(`📷 ${already} screenshot${already === 1 ? ' was' : 's were'} already in your Steam library, skipped.`);
 	}
@@ -343,6 +419,8 @@ function create(ctx) {
 			steamUploaded: view.steamUploaded,
 			uploaded: st.count,
 			failed,
+			lastSteamCheck: st.lastSteamCheck || null,
+			denied: Object.entries(st.deniedApps).map(([id, d]) => ({ appid: +id, game: gameName(+id), at: d.at })),
 			current: view.current,
 			busy,
 			lastScanAt: view.lastScanAt,
@@ -390,7 +468,9 @@ function create(ctx) {
 			await locate(true);
 			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
 			const older = new Set(olderList().flatMap((g) => g.shots.map((x) => x.key)));
-			const keys = Array.isArray(body?.keys) ? body.keys.filter((k) => older.has(k)) : [...older];
+			// picked screenshots: any on this PC that isn't uploaded (Steam's local list can be wrong)
+			const local = new Set(allLocal().map((x) => x.key));
+			const keys = Array.isArray(body?.keys) ? body.keys.filter((k) => local.has(k) && !st.uploaded[k] && !st.queued[k]) : [...older];
 			for (const key of keys) st.queued[key] = true;
 			ctx.saveState();
 			const games = new Set(keys.map((k) => k.split('/')[0])).size;
@@ -398,8 +478,38 @@ function create(ctx) {
 			tick(true).catch(() => {});
 			return { queued: keys.length };
 		},
+		// what's uploading, what's next, and everything uploaded so far (newest first)
+		'GET queue'(q) {
+			const item = (s, state) => ({ key: s.key, appid: s.appid, game: gameName(s.appid), name: s.name, state, error: st.failed[s.key]?.error || null, tries: st.failed[s.key]?.tries || 0 });
+			const cur = view.current?.key;
+			const inBatch = batch.filter((s) => !st.uploaded[s.key] && s.key !== cur);
+			const batchKeys = new Set(batch.map((s) => s.key));
+			const running = new Set(view.running.map((g) => g.appid));
+			const others = byGameOrder(view.pending.filter((s) => !batchKeys.has(s.key) && !st.uploaded[s.key])).flat();
+			const upcoming = [
+				...inBatch.map((s) => item(s, 'next')),
+				...others.map((s) => item(s, st.deniedApps[s.appid] ? 'refused' : st.failed[s.key] ? (canRetry(s.key) ? 'retry' : 'failed') : running.has(s.appid) ? 'game running' : 'waiting')),
+			];
+			const all = Object.entries(st.uploaded).map(([key, u]) => ({ key, appid: +key.split('/')[0], game: gameName(+key.split('/')[0]), name: key.split('/')[1], at: u.at, existed: !!u.existed, removed: !!u.removedFromSteam }))
+				.sort((a, b) => b.at - a.at);
+			const limit = Math.min(500, Math.max(20, parseInt(q.limit, 10) || 60));
+			return { current: view.current, upcoming, uploaded: all.slice(0, limit), uploadedTotal: all.length };
+		},
+		// 🔎 find screenshots that aren't on Steam yet (checks your Steam Cloud, not just Steam's local list)
+		async 'POST check-steam'() {
+			if (!ctx.isLoggedIn()) throw new Error('Log in first');
+			await locate(true);
+			if (!root) throw new Error(view.error || "Couldn't find your Steam screenshots folder");
+			const r = await checkSteam(true);
+			if (!r) throw new Error("Steam didn't list your Steam Cloud files. Try again in a minute.");
+			ctx.log(`📷 Checked Steam: ${r.found ? `${r.found} screenshot${r.found === 1 ? ' was' : 's were'} already on Steam (now marked uploaded). ` : ''}${r.missing ? `${r.missing} not on Steam yet.` : 'Everything is on Steam.'}`);
+			tick().catch(() => {});
+			return r;
+		},
 		'POST retry-failed'() {
 			st.failed = {};
+			st.deniedApps = {};
+			cloud.at = 0;
 			ctx.saveState();
 			tick(true).catch(() => {});
 		},
@@ -414,7 +524,11 @@ function create(ctx) {
 		snapshot,
 		routes,
 		on: {
-			loggedOn() { root = null; lookedUpAt = 0; start(); },
+			loggedOn() {
+				root = null; lookedUpAt = 0; start();
+				// once per sign-in: catch up with what's on Steam already (e.g. uploaded in the Steam app)
+				setTimeout(async () => { try { if (await locate()) await checkSteam(true); } catch (err) { ctx.debug(`steam check: ${err.message}`); } }, 20_000);
+			},
 			stop,
 		},
 	};

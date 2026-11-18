@@ -19,6 +19,7 @@
 - Optional "start when I log in", custom status text and online/invisible status.
 - **Tools tab** with extra Steam features that use the same sign-in. Each one has its own on/off switch, and a tool that's off isn't loaded at all:
   - **📷 Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default.
+  - **🗂 Screenshot manager:** every screenshot in one gallery: like or dislike them, back up the ones you like, move the rest to a trash you can restore from, and import any image (resized to fit Steam) as a screenshot.
   - **🏆 Achievement manager:** see, unlock and lock any game's achievements, like Steam Achievement Manager, at once or one every N minutes. No game install needed.
   - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, drops to your price, or may be delisted soon.
   - **🎁 Sale event helper:** claims the free daily sale sticker and goes through your Discovery Queue during Steam sales, once a day.
@@ -68,7 +69,7 @@ No game is actually launched, so there is no VAC risk.
 
 ## Tools
 
-Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray. Every tool is **off** until you switch it on in its header. A tool that's off isn't loaded and runs no timers or requests.
+Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray. Every tool is **off** until you switch it on in its header. A tool that's off isn't loaded and runs no timers or requests. Every tool you switch on also gets its own tab in the top menu, showing just that tool.
 
 ### 📷 Screenshot uploader (desktop app)
 
@@ -83,6 +84,9 @@ Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools
 | Steam folder | Found automatically. Set it only if Steam is installed somewhere unusual. |
 
 - Only screenshots taken **after** you switch it on are uploaded automatically. **Choose from N older screenshots…** opens a picker with thumbnails grouped by game (newest first): tick single screenshots or a whole game, click one to see it full size (← → to browse, Space to select), then **Upload**. Any that Steam's own `screenshots.vdf` marks as uploaded aren't listed, and any Steam already has are skipped.
+- The panel shows what's going on: **Uploading** (the screenshot going up now, which part of it, and how far the run is), **Up next** (everything waiting, in order, and why: next, waiting for the game to close, will retry, Steam refuses this game), and **Uploaded** (everything uploaded, newest first).
+- Before sending anything it checks your Steam Cloud: a screenshot that's already there isn't sent again. **🔎 Find screenshots missing from Steam** compares every screenshot on your PC with your Steam Cloud (screenshots you uploaded in the Steam app count too): the ones already on Steam are counted as uploaded, and the rest are listed per game with an **Upload** button. This check also runs once after signing in.
+- If Steam won't add a game's screenshots to your library (AccessDenied: the game isn't in your library, or is a demo, playtest or tool), that game is skipped instead of retried; **Retry** tries again.
 - Uploads go game by game and from oldest to newest: the game with the oldest waiting screenshot goes first, and each game's screenshots in the order they were taken. Each game is announced when it's done.
 - **Upload now** uploads everything waiting, even while the game is still running.
 - The idler must be signed in to the **same Steam account** as your Steam app. Screenshots are read from `Steam/userdata/<your account id>/760/remote/<appid>/screenshots`.
@@ -90,6 +94,26 @@ Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools
 - Steam's own screenshot manager may still show these screenshots as not uploaded, because the upload didn't go through the Steam app. Don't upload them again there.
 - Failed uploads are retried 3 times, then listed with a **Retry** button.
 - Screenshots of non-Steam games (shortcuts) aren't uploaded.
+
+### 🗂 Screenshot manager (desktop app)
+
+**🗂 Open the gallery** shows every screenshot the Steam app keeps on this PC (newest or oldest first, per game, or filtered: liked, disliked, not rated, on Steam or not, not backed up, trash). Click screenshots to select them, double-click (or ⤢) to view one full size: **L** like, **D** dislike, **U** clear, **← →** previous/next.
+
+With the selected screenshots: 👍 **Like**, 👎 **Dislike**, **Clear rating**, 💾 **Back up**, ⇪ **Upload to Steam** (through the Screenshot uploader), ☁✕ **Remove from Steam** (from your Steam screenshot library; the file stays), 🗑 **Move to trash**. In the trash: ♻ **Restore** or **Delete forever** (the only thing that deletes files, after asking).
+
+- **Back up automatically:** the screenshots you like (default), all of them except disliked ones, or off. Backups go to `<folder>/<Game>/` (default: `screenshot-backups` in the data folder), each file copied once.
+- The trash is `<folder>/.trash`. Steam's own screenshot list may still show trashed screenshots until it notices they're gone.
+- Ratings are kept by the app; Steam's files aren't changed.
+
+**＋ Import images** turns any picture (PNG, JPG, WebP, BMP, GIF, AVIF…) into a Steam screenshot of the game you pick:
+
+| Size | |
+|---|---|
+| Same as my screenshots of this game | the resolution most of your screenshots of that game have (e.g. 2560 × 1440) |
+| 1280 × 720 · 1920 × 1080 · 2560 × 1440 · 3840 × 2160 | exactly that size |
+| Original size | kept, only shrunk if it's over Steam's limit (16000 px a side, about 26 million pixels) |
+
+**Fit:** the whole image with black bars, fill and crop the edges, or stretch. It's saved as a JPEG with a 200 px thumbnail in the game's Steam screenshots folder, named by when the image was made, and uploaded right away with **Upload to Steam right away** (needs the Screenshot uploader on).
 
 ### 🏆 Achievement manager
 
