@@ -83,7 +83,7 @@ Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools
 | Steam folder | Found automatically. Set it only if Steam is installed somewhere unusual. |
 
 - Only screenshots taken **after** you switch it on are uploaded automatically. **Choose from N older screenshots…** opens a picker with thumbnails grouped by game (newest first): tick single screenshots or a whole game, click one to see it full size (← → to browse, Space to select), then **Upload**. Any that Steam's own `screenshots.vdf` marks as uploaded aren't listed, and any Steam already has are skipped.
-- Uploads go game by game, starting with the game you just closed, and each game is announced when it's done.
+- Uploads go game by game and from oldest to newest: the game with the oldest waiting screenshot goes first, and each game's screenshots in the order they were taken. Each game is announced when it's done.
 - **Upload now** uploads everything waiting, even while the game is still running.
 - The idler must be signed in to the **same Steam account** as your Steam app. Screenshots are read from `Steam/userdata/<your account id>/760/remote/<appid>/screenshots`.
 - It knows a game has closed from the Steam app's `RunningAppID` (the registry on Windows, `registry.vdf` on Linux/macOS) and from Steam itself. While you idle through the Steam app, Steam reports the idled games instead of the one you play. Uploads then start once no new screenshot has been taken for 10 minutes.

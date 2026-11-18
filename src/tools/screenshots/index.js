@@ -219,19 +219,17 @@ function create(ctx) {
 		return existed;
 	}
 
-	// Game by game: the game you just closed first, then the others (newest screenshots first);
-	// within a game, oldest screenshot first. Each game is announced as soon as it's done.
-	const closedAt = new Map();   // appid -> when it was closed
+	// Game by game, oldest to newest: the game with the oldest waiting screenshot goes first, and
+	// within a game the oldest screenshot first. Each game is announced as soon as it's done.
+	// when a screenshot was taken: Steam's file name (20261007131258_1.jpg), else the file's time
+	const takenAt = (s) => (timeFromName(s.name) ?? s.mtimeMs / 1000) * 1000 + (parseInt(s.name.match(/_(\d+)\./)?.[1], 10) || 0);
 	function byGameOrder(list) {
 		const groups = new Map();
-		for (const s of list) {
+		for (const s of [...list].sort((x, y) => takenAt(x) - takenAt(y))) {
 			if (!groups.has(s.appid)) groups.set(s.appid, []);
-			groups.get(s.appid).push(s);
+			groups.get(s.appid).push(s);   // in time order, so each game's first entry is its oldest
 		}
-		const newest = (g) => Math.max(...g.map((s) => s.mtimeMs));
-		return [...groups.entries()]
-			.sort(([a, ga], [b, gb]) => (closedAt.get(b) || 0) - (closedAt.get(a) || 0) || newest(gb) - newest(ga))
-			.map(([, g]) => g.sort((x, y) => x.mtimeMs - y.mtimeMs));
+		return [...groups.values()];   // Map keeps insertion order: games by their oldest screenshot
 	}
 
 	async function uploadBatch(list) {
@@ -264,7 +262,6 @@ function create(ctx) {
 					}
 				}
 				if (n) ctx.log(`📷 Uploaded ${n} ${gameName(appid)} screenshot${n === 1 ? '' : 's'} to your Steam library (${privacyName}).`, true);
-				closedAt.delete(appid);
 				if (stop) break;
 			}
 		} finally {
@@ -302,7 +299,6 @@ function create(ctx) {
 			for (const appid of lastRunning) {
 				if (running.has(appid)) continue;
 				const n = pending.filter((s) => s.appid === appid).length;
-				closedAt.set(appid, Date.now());
 				if (n) ctx.log(`📷 ${gameName(appid)} closed. Uploading ${n} new screenshot${n === 1 ? '' : 's'}…`);
 			}
 			lastRunning = running;
