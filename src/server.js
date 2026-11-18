@@ -19,6 +19,7 @@ const { createDebugLog } = require('./lib/debuglog');
 const { SteamAppIdler, SUPPORTED: STEAM_APP_SUPPORTED } = require('./steamapp');
 const { createTools } = require('./tools');
 const { createUpdater } = require('./lib/updater');
+const sync = require('./lib/settings-sync');
 
 const DATA_DIR = process.env.IDLER_DATA_DIR || path.join(__dirname, '..');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -69,6 +70,8 @@ const config = Object.assign({
 	freeMemoryInTray: true, // desktop app only: close the window fully while it's in the tray
 	devMode: false,        // Developer tab: live log + system info
 	devVerbose: false,     // ...including every Steam message (memory only)
+	syncFolder: '',        // settings backups go here (e.g. your Google Drive folder); '' = off
+	syncAuto: true,        // ...automatically: a day after the last one, and soon after settings change
 	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
 	autoUpdate: true,      // Windows installer / AppImage: download it in the background, install on restart
 	preventSleep: true,    // desktop app only
@@ -785,7 +788,7 @@ const tools = createTools({
 		client,
 		desktop: process.env.IDLER_DESKTOP === '1',
 		mobile: MOBILE,
-		saveConfig: () => writeJson(CONFIG_FILE, config),
+		saveConfig: () => { writeJson(CONFIG_FILE, config); scheduleSync(); },
 		saveState: () => writeJson(STATE_FILE, state),
 		isLoggedIn: () => app.status === 'loggedIn',
 		accountId: () => client.steamID?.accountid ?? null,
@@ -826,6 +829,49 @@ const updater = createUpdater({
 	events,   // 'installUpdate' -> main.js installs and restarts
 	getConfig: () => config,
 });
+
+// ---------- settings backup & sync ----------
+
+state.sync ??= { lastAt: null, lastError: null };
+let syncTimer = null;
+let syncDaily = null;
+function syncBackup(manual = false) {
+	if (!config.syncFolder) throw new Error('Choose a backup folder first.');
+	if (!fs.existsSync(config.syncFolder)) throw new Error(`The folder ${config.syncFolder} isn't there (is your Drive app running?).`);
+	try {
+		const name = sync.writeBackup(config.syncFolder, sync.makeBackup({ config, state, version: VERSION }));
+		state.sync = { lastAt: Date.now(), lastError: null, lastFile: name };
+		writeJson(STATE_FILE, state);
+		if (manual) log(`☁ Settings backed up to ${sync.backupDir(config.syncFolder)}.`);
+		return name;
+	} catch (err) {
+		state.sync.lastError = err.message;
+		debugLog.write('sync', `backup failed: ${err.message}`);
+		throw err;
+	}
+}
+// automatic: 2 minutes after settings change, and once a day
+function scheduleSync() {
+	clearTimeout(syncTimer);
+	if (!config.syncFolder || !config.syncAuto) return;
+	syncTimer = setTimeout(() => { try { syncBackup(); } catch { /* shown in Settings */ } }, 2 * 60_000);
+}
+function startDailySync() {
+	clearInterval(syncDaily);
+	syncDaily = setInterval(() => {
+		if (config.syncFolder && config.syncAuto && Date.now() - (state.sync.lastAt || 0) > 86_400_000) { try { syncBackup(); } catch { /* shown in Settings */ } }
+	}, 3_600_000);
+}
+// put a backup in place: files are written, then the app restarts to load them
+function applyBackup(backup) {
+	const r = sync.restoreInto({ backup, config, state });
+	writeJson(CONFIG_FILE, r.config);
+	writeJson(STATE_FILE, r.state);
+	log(`☁ Restored settings from ${backup.device} (${new Date(backup.createdAt).toLocaleString()}). Restarting…`);
+	const desktop = process.env.IDLER_DESKTOP === '1';
+	if (desktop) setTimeout(() => events.emit('restart'), 800);
+	return { restart: desktop, restartNeeded: !desktop };
+}
 
 // ---------- http api ----------
 
@@ -919,7 +965,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['syncAuto', 'devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
@@ -940,6 +986,13 @@ function applySettings(body) {
 	if (body.games) config.games = cleanGames(body.games);
 	writeJson(CONFIG_FILE, config);
 	if ('checkUpdates' in body) updater.schedule();
+	if (typeof body.syncFolder === 'string') {
+		const f = body.syncFolder.trim();
+		if (f && !path.isAbsolute(f)) throw new Error('Use a full folder path, like G:\\My Drive');
+		config.syncFolder = f;
+		writeJson(CONFIG_FILE, config);
+	}
+	scheduleSync();
 }
 
 const routes = {
@@ -1194,6 +1247,20 @@ const routes = {
 		};
 	},
 
+	'GET /api/sync': () => ({
+		folder: config.syncFolder, auto: config.syncAuto, lastAt: state.sync.lastAt, lastError: state.sync.lastError,
+		detected: process.env.IDLER_MOBILE === '1' ? [] : sync.detectCloudFolders(),
+		backups: config.syncFolder ? sync.listBackups(config.syncFolder) : [],
+		device: require('os').hostname(),
+	}),
+	'POST /api/sync/backup-now': () => ({ file: syncBackup(true) }),
+	'POST /api/sync/restore': (body) => applyBackup(sync.readBackup(config.syncFolder, String(body.file || ''))),
+	'GET /api/sync/export': () => {
+		const b = sync.makeBackup({ config, state, version: VERSION });
+		return { raw: true, type: 'application/json', filename: `steam-master-idler-settings-${new Date().toISOString().slice(0, 10)}.json`, body: JSON.stringify(b, null, 1) };
+	},
+	'POST /api/sync/import': (body) => applyBackup(sync.validate(body.backup)),
+
 	'POST /api/update/check': () => updater.check(),
 	'POST /api/update/download': async () => { await updater.download(); },
 	'POST /api/update/install': () => updater.install(),
@@ -1274,7 +1341,7 @@ const server = http.createServer(async (req, res) => {
 	}
 
 	// imported images arrive as base64 JSON, so that one route may send more
-	const maxBody = /^\/api\/tools\/[\w-]+\/import$/.test(url) ? 80e6 : 1e6;
+	const maxBody = /^\/api\/tools\/[\w-]+\/import$/.test(url) || url === '/api/sync/import' ? 80e6 : 1e6;
 	let raw = '';
 	for await (const chunk of req) {
 		raw += chunk;
@@ -1311,6 +1378,7 @@ function start(port = PORT) {
 			log(`GUI running at ${url}`);
 			loginWithSavedSession();
 			updater.start();
+			startDailySync();
 			resolve(url);
 		});
 	});
@@ -1321,6 +1389,8 @@ function stop() {
 	stopSession('Shutting down.');
 	tools.emit('stop');
 	updater.stop();
+	clearTimeout(syncTimer);
+	clearInterval(syncDaily);
 	return new Promise((resolve) => setTimeout(() => {
 		client.logOff();
 		server.close();

@@ -20,6 +20,7 @@
 - **Tools tab** with extra Steam features that use the same sign-in. Each one has its own on/off switch, and a tool that's off isn't loaded at all:
   - **📷 Screenshot uploader:** screenshots you take in games (F12) are uploaded to your Steam screenshot library by themselves once you close the game, **private** by default.
   - **🗂 Screenshot manager:** every screenshot in one gallery: like or dislike them, back up the ones you like, move the rest to a trash you can restore from, and import any image (resized to fit Steam) as a screenshot.
+  - **🚀 Launch options:** several launch option configs per game (plus its Default), switched with one click, and templates for any game.
   - **🏆 Achievement manager:** see, unlock and lock any game's achievements, like Steam Achievement Manager, at once or one every N minutes. No game install needed.
   - **🏷 Wishlist sale alerts:** a notification when a wishlist game is discounted enough, drops to your price, or may be delisted soon.
   - **🎁 Sale event helper:** claims the free daily sale sticker and goes through your Discovery Queue during Steam sales, once a day.
@@ -30,6 +31,7 @@
   - **💰 Market value:** what your cards, backgrounds, emoticons and boosters are worth (read-only).
   - **💾 Backups:** playtime, achievements and screenshots saved to a folder, daily or weekly.
   - **🖼 Profile rotator:** a different profile background / mini-profile / avatar frame on a schedule.
+- **Backup & sync:** all of the app's settings backed up to your Google Drive, OneDrive, Dropbox or iCloud folder (or any folder, or a file), to restore on your next device.
 - **Developer mode:** a 🛠 Developer tab with a live, searchable log of everything the app and Steam do, plus system info.
 - **In-app updates:** a banner tells you when a new version is out. On Windows (installer) and Linux (AppImage), one click downloads it, checks it and restarts into it.
 - **Light on resources:** the window is closed completely while the app sits in the tray (Settings → *Free memory while in the tray*), and the page stops refreshing while it's hidden.
@@ -115,6 +117,16 @@ With the selected screenshots: 👍 **Like**, 👎 **Dislike**, **Clear rating**
 
 **Fit:** the whole image with black bars, fill and crop the edges, or stretch. It's saved as a JPEG with a 200 px thumbnail in the game's Steam screenshots folder, named by when the image was made, and uploaded right away with **Upload to Steam right away** (needs the Screenshot uploader on).
 
+### 🚀 Launch options (desktop app)
+
+Open a game to see its configs: **Default** (the launch options Steam had when you first opened the game here; you can edit it) and your own, like "Performance" (`-novid -high`) or "Streaming". Pick one with the round button to make it the game's launch options. **＋ Add config** adds an empty one, **＋ From template…** one from your templates (edit them under **Templates**). **▶ Play** starts the game once with those options without changing anything. **Your games** lists every game with launch options, with a quick switch for each.
+
+Steam keeps launch options in `userdata/<your account>/config/localconfig.vdf` and rewrites that file when it closes, so changes are saved while Steam is closed:
+- Steam closed: saved right away.
+- Steam running: **Restart Steam and apply now** (Steam closes, the change is saved, Steam starts again), or **When I close Steam** (saved the moment you close it).
+
+Only that game's `LaunchOptions` line is changed; the rest of the file stays as it was. A copy of the file is kept before each change (`launch-option-backups` in the data folder, the newest 10).
+
 ### 🏆 Achievement manager
 
 1. Switch it on, type a game from your library (or an AppID) and press **Load**.
@@ -162,6 +174,18 @@ Daily or weekly, into the folder you choose (default: `backups` in the data fold
 ### 🖼 Profile rotator
 
 Every 1 hour to 1 week, puts a different item you own on your profile: background, mini-profile background, avatar frame and/or animated avatar (pick which), at random or in order. Click items under **Show my items** to rotate only through those; the one you're wearing has a green dot.
+
+## Backup & sync
+
+Settings → **Backup & sync** saves all of this app's settings (tool settings, screenshot ratings and upload history, launch option configs, stats, ...) as one file into a folder your cloud drive keeps in sync, so your next device can restore them:
+
+1. Pick a folder: the app finds your **Google Drive**, **OneDrive**, **Dropbox** and **iCloud Drive** folders on this computer (click one), or type any folder. Backups go into a `Steam Master Idler` folder inside it.
+2. **Back up automatically** (on by default): a couple of minutes after settings change, and once a day. Or **☁ Back up now**. The newest 20 per device are kept.
+3. On the new device: choose the same cloud folder, then **Restore** next to the backup you want (from any device). The app restarts with those settings.
+
+**Export to a file** / **Import a file…** does the same with a single file you move yourself (this also works on Android).
+
+Your Steam sign-in and password are never in a backup: on a new device you sign in once.
 
 ## Developer mode
 
