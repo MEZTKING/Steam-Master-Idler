@@ -63,9 +63,29 @@ async function fetchPage(steamID64, cookies, page, trace) {
 		entry.bytes = html.length;
 		entry.login = pageLogin(html, steamID64);
 		entry.badgeRows = (html.match(/<div class="badge_row[ "]/g) || []).length;
+		// nothing recognised on a full-sized page: Steam probably changed the page. Record how the
+		// page is built (class names, link shapes, embedded data), never its text, so it can be fixed.
+		if (!entry.badgeRows && html.length > 50_000) entry.shape = pageShape(html);
 		return parseBadgesPage(html, steamID64);
 	}
 	throw new Error('steamcommunity.com redirected too many times');
+}
+
+function pageShape(html) {
+	const count = (re) => (html.match(re) || []).length;
+	const classes = {};
+	for (const m of html.matchAll(/class="([^"]+)"/g)) {
+		for (const c of m[1].split(/\s+/)) if (/badge|card|drop|progress/i.test(c)) classes[c] = (classes[c] || 0) + 1;
+	}
+	return {
+		classes: Object.entries(classes).sort((a, b) => b[1] - a[1]).slice(0, 40),
+		gamecardLinks: count(/\/gamecards\/\d+/g),
+		dropsText: count(/card drops? remaining/gi),
+		collectedText: count(/cards? collected/gi),
+		dataAttrs: [...new Set([...html.matchAll(/\s(data-[\w-]+)=/g)].map((m) => m[1]))].slice(0, 40),
+		jsonVars: [...new Set([...html.matchAll(/(?:window\.|var |const |let )([A-Za-z_$][\w$]*)\s*=\s*[{[]/g)].map((m) => m[1]))].slice(0, 30),
+		reactRoots: count(/data-react|__NEXT_DATA__|SSR|application\/json/g),
+	};
 }
 
 // Returns a Map appid -> {appid, name, dropsLeft} for every game badge (dropsLeft may be 0).

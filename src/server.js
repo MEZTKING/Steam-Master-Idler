@@ -1273,10 +1273,12 @@ const server = http.createServer(async (req, res) => {
 		}
 	}
 
+	// imported images arrive as base64 JSON, so that one route may send more
+	const maxBody = /^\/api\/tools\/[\w-]+\/import$/.test(url) ? 80e6 : 1e6;
 	let raw = '';
 	for await (const chunk of req) {
 		raw += chunk;
-		if (raw.length > 1e6) { res.writeHead(413); return res.end(); }
+		if (raw.length > maxBody) { res.writeHead(413); return res.end(); }
 	}
 	const started = Date.now();
 	// every request except the page's 1-second state poll, with how long it took (never the body: it can hold a password)

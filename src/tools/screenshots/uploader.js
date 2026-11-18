@@ -20,8 +20,10 @@ const PRIVACY = { private: 2, friends: 4, public: 8, unlisted: 16 };
 // tag an error with the step it happened in, so the log says where Steam refused
 const step = (what, err) => Object.assign(new Error(`${what}: ${err.message}`), { eresult: err.eresult, permanent: err.permanent });
 
-async function cloudUpload(client, cloudName, data, timestamp, debug) {
+async function cloudUpload(client, cloudName, data, timestamp, debug, cloudFiles) {
 	const sha = crypto.createHash('sha1').update(data).digest();
+	// already in your Steam Cloud with the same content: nothing to send
+	if (cloudFiles?.get(cloudName) === sha.toString('hex')) { debug?.(`cloud ${cloudName}: already there, not sent again`); return 'exists'; }
 	let begin;
 	try {
 		begin = await callService(client, 'Cloud.ClientBeginFileUpload#1',
@@ -69,13 +71,18 @@ async function cloudUpload(client, cloudName, data, timestamp, debug) {
 // shot: { appid, name, data (Buffer, JPEG), thumb (Buffer, JPEG), width, height, created (unix s) }
 // Returns Steam's screenshot id.
 // Returns { id, existed } - existed: Steam already had this screenshot
-async function uploadScreenshot(client, shot, { privacy = 'private', caption = '', debug } = {}) {
+// onStep('image' | 'thumbnail' | 'library'): which part is being sent now
+// cloudFiles: Map "appid/screenshots/name.jpg" -> sha1 hex of what's in Steam Cloud already (listCloudFiles)
+async function uploadScreenshot(client, shot, { privacy = 'private', caption = '', debug, onStep, cloudFiles } = {}) {
 	const filename = `${shot.appid}/screenshots/${shot.name}`;
 	const thumbname = `${shot.appid}/screenshots/thumbnails/${shot.name}`;
 
-	await cloudUpload(client, filename, shot.data, shot.created, debug);
-	await cloudUpload(client, thumbname, shot.thumb, shot.created, debug);
+	onStep?.('image');
+	await cloudUpload(client, filename, shot.data, shot.created, debug, cloudFiles);
+	onStep?.('thumbnail');
+	await cloudUpload(client, thumbname, shot.thumb, shot.created, debug, cloudFiles);
 
+	onStep?.('library');
 	let res;
 	try {
 		res = await sendMsg(client, EMsg.ClientUCMAddScreenshot, 'CMsgClientUCMAddScreenshot', 'CMsgClientUCMAddScreenshotResponse', {
@@ -92,6 +99,8 @@ async function uploadScreenshot(client, shot, { privacy = 'private', caption = '
 		throw step('Adding it to your screenshot library', err);
 	}
 	if (res.eresult === EResult.DuplicateRequest) return { id: null, existed: true };
+	// Steam won't take screenshots for this app on your account (not owned, a demo/playtest, ...)
+	if (res.eresult === EResult.AccessDenied) throw Object.assign(new Error('Steam won\'t add screenshots of this game to your library (AccessDenied): it isn\'t in your library, or is a demo, playtest or tool'), { permanent: true, appDenied: true });
 	if (res.eresult !== EResult.OK) throw new Error(`Adding it to your screenshot library: Steam answered ${EResult[res.eresult] || res.eresult}`);
 	return { id: String(res.screenshotid), existed: false };
 }
@@ -113,4 +122,18 @@ function jpegSize(buf) {
 	return null;
 }
 
-module.exports = { uploadScreenshot, jpegSize, PRIVACY };
+// Every file in your Steam Cloud for screenshots (app 760): Map filename -> sha1 hex
+async function listCloudFiles(client) {
+	const files = new Map();
+	for (let start = 0, total = Infinity; start < total && start < 100000;) {
+		const r = await callService(client, 'Cloud.EnumerateUserFiles#1', 'CCloud_EnumerateUserFiles_Request', 'CCloud_EnumerateUserFiles_Response',
+			{ appid: SCREENSHOTS_APP, extended_details: true, count: 500, start_index: start });
+		for (const f of r.files || []) if (f.filename) files.set(f.filename, String(f.file_sha || '').toLowerCase());
+		total = r.total_files || 0;
+		if (!r.files?.length) break;
+		start += r.files.length;
+	}
+	return files;
+}
+
+module.exports = { uploadScreenshot, listCloudFiles, jpegSize, PRIVACY };

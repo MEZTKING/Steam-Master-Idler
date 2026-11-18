@@ -258,8 +258,16 @@
 	.check-inline { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; cursor: pointer; }
 	.check-inline input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
 	/* idler / tools switch */
-	.viewtabs { display: flex; gap: 6px; margin-bottom: 16px; }
-	.viewtabs button { padding: 7px 16px; font-weight: 600; color: var(--muted); }
+	.viewtabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+	.viewtabs button { padding: 7px 16px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+	.viewtabs .tool-tab { padding: 7px 12px; font-weight: 500; }
+	.viewtabs .sep { width: 1px; background: var(--border); margin: 4px 2px; }
+	@media (max-width: 560px) {
+		/* phones: one row that scrolls sideways */
+		.viewtabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin-left: -12px; margin-right: -12px; padding: 0 12px 2px; }
+		.viewtabs::-webkit-scrollbar { display: none; }
+		.viewtabs button { flex-shrink: 0; }
+	}
 	.viewtabs button.active { border-color: var(--accent); color: var(--accent-2); background: var(--panel); }
 	.viewtabs .badge { font-size: 11px; font-weight: 600; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: #fff; }
 	/* tools */
@@ -351,6 +359,37 @@
 	.chips span { background: var(--panel-2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; }
 	.chips b { font-weight: 600; }
 	.list-more { padding: 8px 16px; }
+	.shot-thumb { width: 64px; height: 36px; border-radius: 4px; object-fit: cover; background: var(--panel-2); flex-shrink: 0; }
+	.up-now { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+	.up-now img { width: 160px; height: 90px; border-radius: 6px; object-fit: cover; background: var(--panel-2); flex-shrink: 0; }
+	.up-now .info { flex: 1; min-width: 0; display: grid; gap: 6px; }
+	.up-steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+	.up-steps span { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); }
+	.up-steps span.on { border-color: var(--accent); color: var(--accent-2); }
+	.up-steps span.done { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent); }
+	@media (max-width: 560px) { .up-now img { width: 96px; height: 54px; } }
+	/* screenshot manager */
+	.gm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+	.gm-card { position: relative; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: pointer; user-select: none; }
+	.gm-card.sel { border-color: var(--accent); }
+	.gm-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+	.gm-card .meta { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); padding: 4px 6px; }
+	.gm-card .meta .spacer { flex: 1; }
+	.gm-card .rate { position: absolute; top: 5px; left: 5px; font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 2px #000); }
+	.gm-card .zoom { position: absolute; top: 4px; right: 4px; padding: 1px 6px; font-size: 12px; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 5px; }
+	.gm-card.disliked img { opacity: .5; }
+	.gm-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+	.gm-actions button { padding: 4px 10px; font-size: 13px; }
+	#gm-viewer { position: fixed; inset: 0; background: rgba(0, 0, 0, .9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 10; padding: 16px; }
+	#gm-viewer img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; border-radius: 6px; }
+	#gm-viewer .row2 { display: flex; gap: 8px; align-items: center; color: #fff; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+	#im-drop { border: 2px dashed var(--border); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; }
+	#im-drop.over { border-color: var(--accent); color: var(--accent-2); }
+	.im-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+	.im-item { font-size: 11px; color: var(--muted); }
+	.im-item canvas, .im-item img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 6px; }
+	.im-item.ok { color: var(--good); }
+	.im-item.bad { color: var(--bad); }
 	/* developer view */
 	#dev { display: grid; gap: 20px; }
 	.dev-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 18px; padding: 12px 16px; font-size: 12.5px; }
@@ -401,6 +440,7 @@
 		<button data-view="idler" class="active">🎮 Idler</button>
 		<button data-view="tools">🧰 Tools<span class="badge hidden" id="tools-badge"></span></button>
 		<button data-view="dev" id="dev-tab" class="hidden">🛠 Developer</button>
+		<span id="tool-tabs-top" style="display:contents"></span>
 	</nav>
 
 	<!-- login -->
@@ -623,18 +663,54 @@
 					<div class="actions">
 						<button class="primary" id="ss-upload-now" title="Upload everything waiting now, even if the game is still running">⇪ Upload now</button>
 						<button id="ss-upload-older" class="hidden">Upload older screenshots</button>
+						<button id="ss-check" title="Compare with what's really on Steam (your Steam Cloud), including screenshots you uploaded in the Steam app">🔎 Find screenshots missing from Steam</button>
 						<button id="ss-open">Open screenshots folder</button>
 						<a class="btn big" id="ss-library" target="_blank" rel="noopener">View on Steam ↗</a>
 						<span class="error" id="ss-error"></span>
 					</div>
 				</div>
+				<div id="ss-check-result" class="hidden"></div>
 				<div id="ss-failed-wrap" class="hidden">
 					<h3 class="tool-sub">Couldn't upload <button class="linkish" id="ss-retry">Retry</button></h3>
 					<div id="ss-failed"></div>
 				</div>
-				<h3 class="tool-sub">Recent uploads</h3>
-				<div id="ss-recent"></div>
+				<div class="tool-tabs" id="ss-tabs">
+					<button data-tab="now" class="active">Uploading</button>
+					<button data-tab="next">Up next</button>
+					<button data-tab="done">Uploaded</button>
+				</div>
+				<div id="ss-current" class="hidden"></div>
+				<div id="ss-queue"></div>
 				<div class="tool-note">Uploads go through the idler's Steam sign-in, so the idler must be signed in to the same account as your Steam app. Steam's own screenshot manager may still list these as not uploaded; don't upload them again there.</div>
+			</div>
+		</div>
+
+		<!-- 🗂 screenshot manager -->
+		<div class="panel tool" data-tool="gallery">
+			<h2><span class="tool-ic">🗂</span> Screenshot manager<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">All your Steam screenshots in one gallery. Like or dislike them, back up the ones you like to a folder, and move the ones you don't into a trash you can restore from. You can also import any image, resized to fit Steam, to upload it as a screenshot.</div>
+			<div class="tool-unavailable empty hidden"></div>
+			<div class="tool-body hidden">
+				<div class="stats">
+					<div class="stat"><div class="v" id="gm-liked">0</div><div class="k">👍 Liked</div></div>
+					<div class="stat"><div class="v" id="gm-disliked">0</div><div class="k">👎 Disliked</div></div>
+					<div class="stat"><div class="v" id="gm-backed">0</div><div class="k">💾 Backed up</div></div>
+					<div class="stat"><div class="v" id="gm-trash">0</div><div class="k">🗑 In trash</div></div>
+				</div>
+				<div class="panel-body">
+					<div class="settings">
+						<label>Back up automatically
+							<select id="gm-auto"><option value="liked">Screenshots I like</option><option value="all">All screenshots (except disliked)</option><option value="off">Off (only when I press Back up)</option></select></label>
+						<label>Backup folder <input id="gm-folder" placeholder="In the app's data folder"></label>
+					</div>
+					<div class="actions">
+						<button class="primary" id="gm-open">🗂 Open the gallery</button>
+						<button id="gm-import-open">＋ Import images</button>
+						<button id="gm-open-folder" class="desk-only">Open backup folder</button>
+						<span class="error" id="gm-error"></span>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -864,6 +940,71 @@
 			<button class="small primary" id="pk-preview-toggle">Select</button>
 			<button class="small" id="pk-next">Next ›</button>
 			<button class="small" id="pk-preview-close">Close</button></div>
+	</div>
+</dialog>
+
+<dialog id="gm-dialog" class="big">
+	<h2><span>Screenshot manager</span><button class="small" id="gm-close" title="Close">✕</button></h2>
+	<div class="pk-bar">
+		<select id="gm-game"><option value="">All games</option></select>
+		<select id="gm-filter">
+			<option value="all">All screenshots</option><option value="liked">👍 Liked</option><option value="disliked">👎 Disliked</option>
+			<option value="unrated">Not rated</option><option value="notsteam">Not on Steam</option><option value="steam">On Steam</option>
+			<option value="notbacked">Not backed up</option><option value="trash">🗑 Trash</option>
+		</select>
+		<select id="gm-sort"><option value="new">Newest first</option><option value="old">Oldest first</option></select>
+		<button class="small" id="gm-all">Select all</button><button class="small" id="gm-none">Select none</button>
+		<span class="spacer" style="flex:1"></span>
+		<span class="muted" id="gm-count"></span>
+	</div>
+	<div class="pk-body" id="gm-body"><div class="empty">Loading…</div></div>
+	<div class="pk-foot">
+		<span class="muted" id="gm-selcount">Click screenshots to select them · double-click to view</span>
+		<span class="spacer" style="flex:1"></span>
+		<span class="error" id="gm-derror"></span>
+		<div class="gm-actions" id="gm-actions">
+			<button data-act="like">👍 Like</button><button data-act="dislike">👎 Dislike</button><button data-act="unrate">Clear rating</button>
+			<button data-act="backup">💾 Back up</button><button data-act="upload">⇪ Upload to Steam</button>
+			<button data-act="unsteam" title="Remove from your Steam screenshot library (the file on this PC stays)">☁✕ Remove from Steam</button>
+			<button data-act="trash" class="danger">🗑 Move to trash</button>
+			<button data-act="restore">♻ Restore</button><button data-act="purge" class="danger">Delete forever</button>
+		</div>
+	</div>
+	<div id="gm-viewer" class="hidden">
+		<img id="gm-viewer-img" alt="">
+		<div class="row2"><span id="gm-viewer-name"></span>
+			<button class="small" id="gm-v-prev">‹</button>
+			<button class="small" id="gm-v-like">👍 Like (L)</button><button class="small" id="gm-v-dislike">👎 Dislike (D)</button><button class="small" id="gm-v-clear">Clear (U)</button>
+			<button class="small" id="gm-v-next">›</button>
+			<button class="small" id="gm-v-close">Close (Esc)</button></div>
+	</div>
+</dialog>
+
+<dialog id="im-dialog" class="big">
+	<h2><span>Import images as Steam screenshots</span><button class="small" id="im-close" title="Close">✕</button></h2>
+	<div class="pk-body" style="padding-top:12px">
+		<div id="im-drop">Drop images here, or click to choose (PNG, JPG, WebP, BMP, GIF, AVIF…)<input type="file" id="im-files" accept="image/*" multiple hidden></div>
+		<div class="settings" style="margin-top:14px">
+			<label>Game <input id="im-game" list="ach-games" placeholder="Game name or AppID…" autocomplete="off"></label>
+			<label>Size
+				<select id="im-size">
+					<option value="game">Same as my screenshots of this game</option>
+					<option value="1280x720">1280 × 720 (720p)</option><option value="1920x1080" selected>1920 × 1080 (1080p)</option>
+					<option value="2560x1440">2560 × 1440 (1440p)</option><option value="3840x2160">3840 × 2160 (4K)</option>
+					<option value="keep">Original size (only shrink if Steam's limit needs it)</option>
+				</select></label>
+			<label>Fit
+				<select id="im-fit"><option value="contain">Whole image, black bars if needed</option><option value="cover">Fill, crop the edges</option><option value="stretch">Stretch to fit</option></select></label>
+			<label>JPEG quality <select id="im-quality"><option value="0.92">High (92%)</option><option value="0.97" selected>Very high (97%)</option><option value="0.85">Smaller files (85%)</option></select></label>
+		</div>
+		<div class="hint" id="im-size-hint" style="margin:8px 0 12px"></div>
+		<div class="im-list" id="im-list"></div>
+	</div>
+	<div class="pk-foot">
+		<label class="check-inline" style="font-size:13px"><input type="checkbox" id="im-upload" checked> Upload to Steam right away</label>
+		<span class="spacer" style="flex:1"></span>
+		<span class="error" id="im-error"></span>
+		<button id="im-cancel">Cancel</button><button class="primary" id="im-go" disabled>Import</button>
 	</div>
 </dialog>
 
@@ -1458,11 +1599,23 @@ $('#logout').onclick = async () => {
 // ---------- idler / tools views ----------
 
 let view = 'idler';
-try { view = ['tools', 'dev'].includes(localStorage.getItem('view')) ? localStorage.getItem('view') : 'idler'; } catch {}
+try { const v = localStorage.getItem('view') || ''; view = ['tools', 'dev'].includes(v) || v.startsWith('tool:') ? v : 'idler'; } catch {}
+// every tool that's on gets its own tab in the top menu
+const TAB_NAMES = { screenshots: 'Screenshots', gallery: 'Gallery', achievements: 'Achievements', wishlist: 'Wishlist', sale: 'Sale helper', freegames: 'Free games',
+	badges: 'Badges', playtime: 'Playtime', cleanup: 'Cleanup', market: 'Market', backups: 'Backups', profile: 'Profile' };
+const toolView = () => (view.startsWith('tool:') ? view.slice(5) : null);
+function renderToolTabs() {
+	const on = (S.tools || []).filter((t) => t.enabled);
+	const html = on.length ? '<span class="sep"></span>' + on.map((t) => `<button class="tool-tab ${view === `tool:${t.id}` ? 'active' : ''}" data-view="tool:${t.id}" title="${esc(t.name)}">${t.icon} ${esc(TAB_NAMES[t.id] || t.name)}</button>`).join('') : '';
+	setHtml($('#tool-tabs-top'), html);
+	// a tool that was switched off: back to the list of tools
+	if (toolView() && !on.some((t) => t.id === toolView())) showView('tools');
+}
 function showView(v) {
 	view = v;
 	try { localStorage.setItem('view', v); } catch {}
 	document.querySelectorAll('#viewtabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+	$('#viewtabs').querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	if (S) render();
 }
 $('#viewtabs').onclick = (e) => { const b = e.target.closest('button'); if (b) showView(b.dataset.view); };
@@ -1496,9 +1649,12 @@ async function act(id, action, body, btn, errSel) {
 }
 
 function renderTools() {
+	const only = toolView();
+	$('.tools-intro').classList.toggle('hidden', !!only);
 	for (const t of S.tools || []) {
 		const p = pane(t.id);
 		if (!p) continue;
+		p.classList.toggle('hidden', !!only && t.id !== only);
 		p.classList.toggle('on', t.enabled);
 		const sw = p.querySelector('[data-enable]');
 		if (!sw.disabled) sw.checked = t.enabled;
@@ -1546,11 +1702,53 @@ TOOL_RENDER.screenshots = (t) => {
 	if (t.libraryUrl) $('#ss-library').href = t.libraryUrl;
 	$('#ss-failed-wrap').classList.toggle('hidden', !t.failed?.length);
 	setHtml($('#ss-failed'), (t.failed || []).map((f) => `<div class="row"><div class="name" title="${esc(f.file)}">${esc(f.game)} · <span class="muted">${esc(f.file)}</span></div><span class="hours warn-text">${esc(f.error)}</span></div>`).join(''));
-	setHtml($('#ss-recent'), t.recent?.length ? t.recent.map((r) => `<div class="row">
-		${iconHtml(libGame(r.appid)?.icon)}
-		<div class="name" title="${esc(r.name)}">${esc(r.game)} <span class="muted">· ${esc(r.name)}</span></div>
-		<span class="hours">${ago(r.at)}</span></div>`).join('') : '<div class="empty">Nothing uploaded yet.</div>');
+	ssQueue(t);
 };
+// ----- what's uploading / up next / uploaded -----
+let ssTab = 'now';
+let ssLimit = 60;
+const shotImg = (key) => `/api/tools/screenshots/image?key=${encodeURIComponent(key)}`;
+const STEP_NAMES = { image: 'Image', thumbnail: 'Thumbnail', library: 'Adding to your library' };
+$('#ss-tabs').onclick = (e) => {
+	if (!e.target.dataset.tab) return;
+	ssTab = e.target.dataset.tab;
+	document.querySelectorAll('#ss-tabs button').forEach((b) => b.classList.toggle('active', b === e.target));
+	pane('screenshots').dataset.dataKey = '';
+	ssQueue(tool('screenshots'));
+};
+async function ssQueue(t) {
+	const key = JSON.stringify([t.current?.file, t.current?.step, t.pending, t.waiting, t.uploaded, t.failed?.length, ssLimit, t.lastScanAt && Math.floor(t.lastScanAt / 60000)]);
+	const q = await toolData('screenshots', key, `queue?limit=${ssLimit}`);
+	const tabs = document.querySelectorAll('#ss-tabs button');
+	tabs[0].textContent = q.current ? 'Uploading (1)' : 'Uploading';
+	tabs[1].textContent = `Up next (${q.upcoming.length})`;
+	tabs[2].textContent = `Uploaded (${q.uploadedTotal.toLocaleString()})`;
+	// the one going up right now, always shown on the first tab
+	const c = q.current;
+	const steps = ['image', 'thumbnail', 'library'];
+	setHtml($('#ss-current'), c && ssTab === 'now' ? `<div class="up-now">
+		<img src="${shotImg(c.key)}" alt="">
+		<div class="info"><div><b>${esc(c.game)}</b> <span class="muted">· ${esc(c.file)}</span></div>
+			<div class="up-steps">${steps.map((x, i) => `<span class="${x === c.step ? 'on' : steps.indexOf(c.step) > i ? 'done' : ''}">${steps.indexOf(c.step) > i ? '✓ ' : ''}${STEP_NAMES[x]}</span>`).join('')}</div>
+			<div class="hint">Screenshot ${c.done + 1} of ${c.total} for this game${c.games > 1 ? ` · game ${c.gameNo} of ${c.games}` : ''} · ${c.overall + 1} of ${c.overallTotal} in this run</div>
+			<div class="bar"><div style="width:${((c.overall + steps.indexOf(c.step) / 3) / c.overallTotal) * 100}%"></div></div></div></div>` : '');
+	$('#ss-current').classList.toggle('hidden', !c || ssTab !== 'now');
+	const row = (x, right) => `<div class="row"><img class="shot-thumb" src="${shotImg(x.key)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+		<div class="name" title="${esc(x.name)}">${esc(x.game)} <span class="muted">· ${esc(x.name)}</span></div>${right}</div>`;
+	const STATE = { next: '<span class="tag on">next</span>', waiting: '<span class="tag">waiting</span>', 'game running': '<span class="tag">after you close the game</span>', retry: '<span class="tag bad">will retry</span>', failed: '<span class="tag bad">failed</span>', refused: '<span class="tag bad" title="Steam won\'t add screenshots of this game to your library. Press Retry to try again.">Steam refuses this game</span>' };
+	if (ssTab === 'now') {
+		showList($('#ss-queue'), c ? q.upcoming.filter((x) => x.state === 'next').slice(0, 5).map((x) => row(x, STATE.next)) : [],
+			c ? 'This is the last one in this run.' : q.upcoming.length ? `Nothing uploading right now. ${q.upcoming.length} screenshot(s) wait in "Up next".` : 'Nothing uploading right now.');
+	} else if (ssTab === 'next') {
+		showList($('#ss-queue'), q.upcoming.map((x) => row(x, `${STATE[x.state] || ''}${x.error ? `<span class="hours warn-text" title="${esc(x.error)}">${esc(x.error.slice(0, 60))}</span>` : ''}`)), 'Nothing waiting. New screenshots show up here until they\'re uploaded.');
+	} else {
+		const rows = q.uploaded.map((x) => row(x, `${x.existed ? '<span class="tag">already on Steam</span>' : ''}${x.removed ? '<span class="tag bad">removed from Steam</span>' : ''}<span class="hours">${ago(x.at)}</span>`));
+		setHtml($('#ss-queue'), !rows.length ? '<div class="empty">Nothing uploaded yet.</div>'
+			: rows.join('') + (q.uploadedTotal > q.uploaded.length ? `<div class="list-more"><button class="small" id="ss-more">Show more (${q.uploadedTotal - q.uploaded.length} older)</button></div>` : ''));
+		const more = $('#ss-more'); if (more) more.onclick = () => { ssLimit += 100; ssQueue(tool('screenshots')); };
+	}
+}
+
 $('#ss-when').onchange = (e) => act('screenshots', 'settings', { when: e.target.value }, null, '#ss-error');
 $('#ss-privacy').onchange = (e) => act('screenshots', 'settings', { privacy: e.target.value }, null, '#ss-error');
 $('#ss-steamdir').onchange = (e) => act('screenshots', 'settings', { steamDir: e.target.value }, null, '#ss-error');
@@ -1668,8 +1866,304 @@ $('#ss-picker').addEventListener('keydown', (e) => {
 	if (e.key === ' ') { e.preventDefault(); $('#pk-preview-toggle').click(); }
 	if (e.key === 'Escape') { e.preventDefault(); $('#pk-preview').classList.add('hidden'); }
 });
+let ssCheck = null;
+$('#ss-check').onclick = async (e) => {
+	e.target.disabled = true;
+	e.target.textContent = '🔎 Checking Steam…';
+	$('#ss-error').textContent = '';
+	try { ssCheck = await toolApi('screenshots', 'check-steam', {}); ssRenderCheck(); }
+	catch (err) { $('#ss-error').textContent = err.message; }
+	finally { e.target.disabled = false; e.target.textContent = '🔎 Find screenshots missing from Steam'; poll(); }
+};
+function ssRenderCheck() {
+	const r = ssCheck;
+	const el = $('#ss-check-result');
+	el.classList.toggle('hidden', !r);
+	if (!r) return;
+	const older = r.games.flatMap((g) => g.older);
+	el.innerHTML = `<h3 class="tool-sub">Missing from Steam <button class="linkish" id="ss-check-hide">Hide</button></h3>
+		<div class="hint" style="padding:0 16px 8px">${r.local.toLocaleString()} screenshots on this PC, ${r.cloudFiles.toLocaleString()} files in your Steam Cloud.
+			${r.found ? `${r.found} were already on Steam (uploaded earlier or in the Steam app) and are now counted as uploaded. ` : ''}
+			${r.missing ? `<b>${r.missing}</b> aren't on Steam yet.` : '<b>Everything is on Steam.</b>'}</div>
+		${r.games.map((g) => `<div class="row">${iconHtml(libGame(g.appid)?.icon)}<div class="name">${esc(g.game)}</div>
+			${g.older.length ? `<span class="tag bad">${g.older.length} older, not uploaded</span>` : ''}${g.waiting ? `<span class="tag">${g.waiting} waiting in the uploader</span>` : ''}
+			${g.older.length ? `<button class="small" data-up-game="${g.appid}">Upload these ${g.older.length}</button>` : ''}</div>`).join('')}
+		${older.length > 1 && r.games.filter((g) => g.older.length).length > 1 ? `<div class="actions" style="padding:0 16px 12px"><button class="primary" id="ss-up-missing">⇪ Upload all ${older.length} missing</button></div>` : ''}`;
+	$('#ss-check-hide').onclick = () => { ssCheck = null; ssRenderCheck(); };
+	const upload = async (keys, btn) => {
+		btn.disabled = true;
+		try { const q = await toolApi('screenshots', 'upload-older', { keys }); btn.textContent = `✔ ${q.queued} queued`; }
+		catch (err) { $('#ss-error').textContent = err.message; btn.disabled = false; }
+		poll();
+	};
+	el.querySelectorAll('[data-up-game]').forEach((b) => { b.onclick = () => upload(r.games.find((g) => String(g.appid) === b.dataset.upGame).older, b); });
+	const all = $('#ss-up-missing'); if (all) all.onclick = () => upload(older, all);
+}
+
 $('#ss-open').onclick = () => act('screenshots', 'open-folder', {}, null, '#ss-error');
 $('#ss-retry').onclick = () => act('screenshots', 'retry-failed', {}, null, '#ss-error');
+
+// ----- 🗂 screenshot manager -----
+let gmShots = [];
+let gmGames = {};
+const gmSel = new Set();
+let gmShown = 120;
+let gmViewKey = null;
+const gmImg = (key, full) => `/api/tools/gallery/image?key=${encodeURIComponent(key)}${full ? '&full=1' : ''}`;
+TOOL_RENDER.gallery = (t) => {
+	$('#gm-liked').textContent = t.liked; $('#gm-disliked').textContent = t.disliked;
+	$('#gm-backed').textContent = t.backedUp; $('#gm-trash').textContent = t.inTrash;
+	setIfIdle($('#gm-auto'), t.settings.autoBackup); setIfIdle($('#gm-folder'), t.settings.folder);
+	$('#gm-folder').placeholder = t.folder;
+	$('#gm-open-folder').classList.toggle('hidden', !S.desktop);
+};
+$('#gm-auto').onchange = (e) => act('gallery', 'settings', { autoBackup: e.target.value }, null, '#gm-error');
+$('#gm-folder').onchange = (e) => act('gallery', 'settings', { folder: e.target.value }, null, '#gm-error');
+$('#gm-open-folder').onclick = () => act('gallery', 'open-folder', {}, null, '#gm-error');
+$('#gm-open').onclick = async () => { gmSel.clear(); gmShown = 120; $('#gm-dialog').showModal(); await gmLoad(); };
+async function gmLoad() {
+	$('#gm-derror').textContent = '';
+	try {
+		const r = await api('/api/tools/gallery/list');
+		gmShots = r.shots; gmGames = r.games;
+		const cur = $('#gm-game').value;
+		const counts = {};
+		for (const x of gmShots) if (!x.trashed) counts[x.appid] = (counts[x.appid] || 0) + 1;
+		$('#gm-game').innerHTML = '<option value="">All games</option>' + Object.entries(gmGames).sort((a, b) => a[1].localeCompare(b[1]))
+			.map(([id, n]) => `<option value="${id}">${esc(n)} (${counts[id] || 0})</option>`).join('');
+		$('#gm-game').value = cur;
+		for (const k of [...gmSel]) if (!gmShots.some((x) => x.key === k)) gmSel.delete(k);
+		gmRender();
+	} catch (e) { $('#gm-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function gmVisible() {
+	const g = $('#gm-game').value; const f = $('#gm-filter').value;
+	const list = gmShots.filter((x) => (!g || String(x.appid) === g) && (f === 'trash' ? x.trashed : !x.trashed) && (
+		f === 'all' || f === 'trash' || (f === 'liked' && x.rating === 1) || (f === 'disliked' && x.rating === -1) || (f === 'unrated' && !x.rating)
+		|| (f === 'notsteam' && !x.onSteam) || (f === 'steam' && x.onSteam) || (f === 'notbacked' && !x.backedUp)));
+	return list.sort((a, b) => ($('#gm-sort').value === 'old' ? a.takenAt - b.takenAt : b.takenAt - a.takenAt));
+}
+function gmRender() {
+	const list = gmVisible();
+	$('#gm-count').textContent = `${list.length} screenshot${list.length === 1 ? '' : 's'}`;
+	$('#gm-body').innerHTML = !list.length ? '<div class="empty">Nothing here.</div>' : `<div class="gm-grid">${list.slice(0, gmShown).map((x) => `
+		<div class="gm-card ${gmSel.has(x.key) ? 'sel' : ''} ${x.rating === -1 ? 'disliked' : ''}" data-key="${esc(x.key)}" title="${esc(gmGames[x.appid] || '')} · ${esc(x.name)}">
+			<img src="${gmImg(x.key)}" alt="" loading="lazy">
+			<span class="rate">${x.rating === 1 ? '👍' : x.rating === -1 ? '👎' : ''}</span>
+			<button type="button" class="zoom" data-view="${esc(x.key)}" title="View">⤢</button>
+			<div class="meta"><span>${new Date(x.takenAt).toLocaleDateString()}</span><span class="spacer"></span>
+				${x.onSteam ? '<span title="On your Steam library">☁</span>' : ''}${x.backedUp ? '<span title="Backed up">💾</span>' : ''}</div>
+		</div>`).join('')}</div>${list.length > gmShown ? `<div class="list-more"><button class="small" id="gm-more">Show more (${list.length - gmShown})</button></div>` : ''}`;
+	const more = $('#gm-more'); if (more) more.onclick = () => { gmShown += 240; gmRender(); };
+	gmSelInfo();
+}
+function gmSelInfo() {
+	const sel = gmShots.filter((x) => gmSel.has(x.key));
+	const trash = $('#gm-filter').value === 'trash';
+	$('#gm-selcount').textContent = sel.length ? `${sel.length} selected` : 'Click screenshots to select them · double-click to view';
+	const show = (a, on) => { const b = document.querySelector(`#gm-actions [data-act="${a}"]`); b.classList.toggle('hidden', !on); b.disabled = !sel.length; };
+	for (const a of ['like', 'dislike', 'unrate', 'backup', 'upload', 'trash']) show(a, !trash);
+	show('unsteam', !trash && sel.some((x) => x.onSteam && x.steamId));
+	show('restore', trash); show('purge', trash);
+}
+$('#gm-body').addEventListener('click', (e) => {
+	if (e.target.dataset.view) { gmView(e.target.dataset.view); return; }
+	const card = e.target.closest('.gm-card'); if (!card) return;
+	const k = card.dataset.key;
+	if (gmSel.has(k)) gmSel.delete(k); else gmSel.add(k);
+	card.classList.toggle('sel', gmSel.has(k));
+	gmSelInfo();
+});
+$('#gm-body').addEventListener('dblclick', (e) => { const card = e.target.closest('.gm-card'); if (card) gmView(card.dataset.key); });
+['#gm-game', '#gm-filter', '#gm-sort'].forEach((sel) => $(sel).addEventListener('change', () => { gmShown = 120; gmSel.clear(); gmRender(); }));
+$('#gm-all').onclick = () => { for (const x of gmVisible()) gmSel.add(x.key); gmRender(); };
+$('#gm-none').onclick = () => { gmSel.clear(); gmRender(); };
+$('#gm-close').onclick = () => { $('#gm-viewer').classList.add('hidden'); $('#gm-dialog').close(); };
+async function gmAct(action, keys, body = {}) {
+	$('#gm-derror').textContent = '';
+	try {
+		const r = await api(`/api/tools/gallery/${action}`, { keys, ...body });
+		await gmLoad();
+		poll();
+		return r;
+	} catch (e) { $('#gm-derror').textContent = e.message; return null; }
+}
+$('#gm-actions').onclick = async (e) => {
+	const a = e.target.dataset.act; if (!a) return;
+	const keys = [...gmSel];
+	if (!keys.length) return;
+	if (a === 'purge' && !confirm(`Delete ${keys.length} screenshot(s) for good? They can't be restored after this.`)) return;
+	if (a === 'unsteam' && !confirm(`Remove ${keys.length} screenshot(s) from your Steam screenshot library? The files on this PC stay.`)) return;
+	if (a === 'trash' && !confirm(`Move ${keys.length} screenshot(s) out of Steam's folder into the trash? You can restore them later. (Steam's own screenshot list may still show them until it notices they're gone.)`)) return;
+	e.target.disabled = true;
+	const r = await gmAct({ like: 'rate', dislike: 'rate', unrate: 'rate', backup: 'backup', upload: 'upload', unsteam: 'remove-from-steam', trash: 'trash', restore: 'restore', purge: 'empty-trash' }[a],
+		keys, a === 'like' ? { rating: 1 } : a === 'dislike' ? { rating: -1 } : a === 'unrate' ? { rating: 0 } : {});
+	e.target.disabled = false;
+	if (r && ['trash', 'restore', 'purge'].includes(a)) gmSel.clear();
+	if (r && a === 'upload') $('#gm-derror').textContent = r.queued ? `✔ ${r.queued} queued for upload.` : 'Nothing to upload: those are on Steam already or waiting in the uploader.';
+	gmRender();
+};
+// full-size viewer with keyboard rating
+function gmView(key) {
+	gmViewKey = key;
+	const x = gmShots.find((s) => s.key === key); if (!x) return;
+	$('#gm-viewer-img').src = gmImg(key, true);
+	$('#gm-viewer-name').textContent = `${gmGames[x.appid] || ''} · ${new Date(x.takenAt).toLocaleString()} ${x.rating === 1 ? '👍' : x.rating === -1 ? '👎' : ''}`;
+	$('#gm-viewer').classList.remove('hidden');
+}
+const gmStep = (d) => { const l = gmVisible(); const i = l.findIndex((x) => x.key === gmViewKey); if (i >= 0 && l[i + d]) gmView(l[i + d].key); };
+async function gmRateViewed(r) {
+	const key = gmViewKey;
+	const x = gmShots.find((s) => s.key === key); if (!x) return;
+	x.rating = r;   // show it right away
+	gmView(key);
+	await api('/api/tools/gallery/rate', { keys: [key], rating: r }).catch((e) => { $('#gm-derror').textContent = e.message; });
+	gmRender();
+	setTimeout(() => gmStep(1), 150);   // on to the next one
+}
+$('#gm-v-prev').onclick = () => gmStep(-1); $('#gm-v-next').onclick = () => gmStep(1);
+$('#gm-v-like').onclick = () => gmRateViewed(1); $('#gm-v-dislike').onclick = () => gmRateViewed(-1); $('#gm-v-clear').onclick = () => gmRateViewed(0);
+$('#gm-v-close').onclick = () => $('#gm-viewer').classList.add('hidden');
+$('#gm-viewer').onclick = (e) => { if (e.target.id === 'gm-viewer') $('#gm-viewer').classList.add('hidden'); };
+$('#gm-dialog').addEventListener('keydown', (e) => {
+	if ($('#gm-viewer').classList.contains('hidden')) return;
+	const k = e.key.toLowerCase();
+	if (k === 'arrowleft') gmStep(-1); else if (k === 'arrowright') gmStep(1);
+	else if (k === 'l') gmRateViewed(1); else if (k === 'd') gmRateViewed(-1); else if (k === 'u') gmRateViewed(0);
+	else if (k === 'escape') { e.preventDefault(); $('#gm-viewer').classList.add('hidden'); }
+});
+
+// ----- import: any image -> resized JPEG + thumbnail in the game's Steam screenshots folder -----
+let imFiles = [];
+let imInfo = null;   // { maxSide, maxPixels, common }
+let imInfoFor = null;
+let imInfoReady = Promise.resolve();
+$('#gm-import-open').onclick = () => { imFiles = []; imRenderList(); $('#im-error').textContent = ''; achGameList(); $('#im-dialog').showModal(); };
+$('#im-close').onclick = () => $('#im-dialog').close();
+$('#im-cancel').onclick = () => $('#im-dialog').close();
+$('#im-drop').onclick = () => $('#im-files').click();
+$('#im-files').onchange = (e) => imAdd(e.target.files);
+$('#im-drop').addEventListener('dragover', (e) => { e.preventDefault(); $('#im-drop').classList.add('over'); });
+$('#im-drop').addEventListener('dragleave', () => $('#im-drop').classList.remove('over'));
+$('#im-drop').addEventListener('drop', (e) => { e.preventDefault(); $('#im-drop').classList.remove('over'); imAdd(e.dataTransfer.files); });
+function imAdd(files) {
+	for (const f of files) if (f.type.startsWith('image/')) imFiles.push({ file: f, state: '' });
+	imRenderList();
+}
+const imAppid = () => { const v = $('#im-game').value.trim(); if (/^\d+$/.test(v)) return +v; return S.library.find((g) => g.name.toLowerCase() === v.toLowerCase())?.appid || null; };
+async function imTarget() {
+	await imInfoReady;
+	const v = $('#im-size').value;
+	if (v === 'keep') return null;
+	if (v !== 'game') { const [w, h] = v.split('x').map(Number); return { width: w, height: h }; }
+	return imInfo?.common ? { width: imInfo.common.width, height: imInfo.common.height } : { width: 1920, height: 1080 };
+}
+function imLoadInfo() {
+	imInfoReady = imFetchInfo();
+	return imInfoReady;
+}
+async function imFetchInfo() {
+	const appid = imAppid();
+	if (appid !== imInfoFor) {
+		imInfoFor = appid;
+		let info = null;
+		if (appid) { try { info = await api(`/api/tools/gallery/import-info?appid=${appid}`); } catch {} }
+		if (imInfoFor === appid) imInfo = info;   // only the newest answer counts
+	}
+	const c = imInfo?.common;
+	$('#im-size-hint').textContent = $('#im-size').value === 'game'
+		? (c ? `Your screenshots of this game are ${c.width} × ${c.height} (${c.count} of the last ${c.of}), so images become that size.` : appid ? 'No screenshots of this game yet: 1920 × 1080 is used.' : 'Pick a game first.')
+		: $('#im-size').value === 'keep' ? "Images keep their size; only ones bigger than Steam accepts (16000 px a side, about 26 million pixels) are shrunk." : '';
+	imRenderList();
+}
+['#im-game', '#im-size'].forEach((sel) => $(sel).addEventListener('change', imLoadInfo));
+['#im-fit', '#im-quality'].forEach((sel) => $(sel).addEventListener('change', imRenderList));
+function imDecode(file) {
+	return new Promise((resolve, reject) => {
+		const url = URL.createObjectURL(file);
+		const img = new Image();
+		img.onload = () => resolve({ img, url });
+		img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("can't read this image")); };
+		img.src = url;
+	});
+}
+// draw img into w x h with the chosen fit, return the canvas
+function imDraw(img, w, h, fit) {
+	const c = document.createElement('canvas');
+	c.width = w; c.height = h;
+	const g = c.getContext('2d');
+	g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+	g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+	const iw = img.naturalWidth; const ih = img.naturalHeight;
+	if (fit === 'stretch') { g.drawImage(img, 0, 0, w, h); return c; }
+	const scale = fit === 'cover' ? Math.max(w / iw, h / ih) : Math.min(w / iw, h / ih);
+	const dw = iw * scale; const dh = ih * scale;
+	g.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+	return c;
+}
+async function imSizeFor(img) {
+	const t = await imTarget();
+	if (t) return t;
+	// original size, shrunk only to Steam's limits
+	let w = img.naturalWidth; let h = img.naturalHeight;
+	const max = imInfo?.maxSide || 16000; const px = imInfo?.maxPixels || 26210175;
+	const k = Math.min(1, max / Math.max(w, h), Math.sqrt(px / (w * h)));
+	return { width: Math.max(1, Math.floor(w * k)), height: Math.max(1, Math.floor(h * k)) };
+}
+const toB64 = (canvas, q) => new Promise((resolve) => canvas.toBlob((b) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1]); r.readAsDataURL(b); }, 'image/jpeg', q));
+async function imRenderList() {
+	$('#im-go').disabled = !imFiles.length;
+	$('#im-go').textContent = imFiles.length ? `Import ${imFiles.length} image${imFiles.length === 1 ? '' : 's'}` : 'Import';
+	const box = $('#im-list');
+	box.innerHTML = imFiles.map((f, i) => `<div class="im-item ${f.state === 'done' ? 'ok' : f.state.startsWith('⚠') ? 'bad' : ''}" data-i="${i}"><canvas></canvas><div class="sz">${esc(f.file.name)}</div><div>${esc(f.state)}</div></div>`).join('');
+	// previews: exactly what will be saved, small
+	for (const [i, f] of imFiles.entries()) {
+		try {
+			const { img, url } = await imDecode(f.file);
+			const s = await imSizeFor(img);
+			const k = 280 / s.width;
+			const prev = imDraw(img, Math.round(s.width * k), Math.max(1, Math.round(s.height * k)), $('#im-fit').value);
+			const slot = box.querySelector(`[data-i="${i}"] canvas`);
+			if (slot) { slot.replaceWith(prev); box.querySelector(`[data-i="${i}"] .sz`).textContent = `${img.naturalWidth}×${img.naturalHeight} → ${s.width}×${s.height}`; }
+			URL.revokeObjectURL(url);
+		} catch (e) { f.state = `⚠ ${e.message}`; }
+	}
+}
+$('#im-go').onclick = async (e) => {
+	const appid = imAppid();
+	if (!appid) { $('#im-error').textContent = 'Pick the game these screenshots belong to (from your library, or type its AppID).'; return; }
+	$('#im-error').textContent = '';
+	e.target.disabled = true;
+	let ok = 0;
+	for (const f of imFiles) {
+		if (f.state === 'done') continue;
+		try {
+			f.state = 'Converting…'; imRenderStates();
+			const { img, url } = await imDecode(f.file);
+			const s = await imSizeFor(img);
+			const full = imDraw(img, s.width, s.height, $('#im-fit').value);
+			const tk = 200 / Math.max(s.width, s.height);   // Steam's thumbnails: 200 px on the long side
+			const thumb = imDraw(img, Math.max(1, Math.round(s.width * tk)), Math.max(1, Math.round(s.height * tk)), $('#im-fit').value);
+			URL.revokeObjectURL(url);
+			f.state = 'Saving…'; imRenderStates();
+			await api('/api/tools/gallery/import', { appid, takenAt: f.file.lastModified || Date.now(), image: await toB64(full, +$('#im-quality').value), thumb: await toB64(thumb, 0.9) });
+			f.state = 'done'; ok++;
+		} catch (err) { f.state = `⚠ ${err.message}`; }
+		imRenderStates();
+	}
+	e.target.disabled = false;
+	if (ok && $('#im-upload').checked) {
+		try { await api('/api/tools/screenshots/upload-now', {}); } catch (err) { $('#im-error').textContent = `Imported, but couldn't start the upload: ${err.message} (switch on the Screenshot uploader)`; }
+	}
+	if (ok) { $('#im-error').textContent ||= `✔ Imported ${ok} image${ok === 1 ? '' : 's'}${$('#im-upload').checked ? ' and started uploading' : ''}.`; if ($('#gm-dialog').open) gmLoad(); poll(); }
+};
+function imRenderStates() {
+	for (const [i, f] of imFiles.entries()) {
+		const el = $('#im-list').querySelector(`[data-i="${i}"]`); if (!el) continue;
+		el.className = `im-item ${f.state === 'done' ? 'ok' : f.state.startsWith('⚠') ? 'bad' : ''}`;
+		el.lastElementChild.textContent = f.state === 'done' ? '✔ imported' : f.state;
+	}
+}
 
 // ----- 🏆 achievement manager -----
 let achGame = null;          // loaded game
@@ -2191,7 +2685,8 @@ function render() {
 	$('#login').classList.toggle('hidden', loggedIn);
 	$('#viewtabs').classList.toggle('hidden', !loggedIn);
 	$('#app').classList.toggle('hidden', !loggedIn || view !== 'idler');
-	$('#tools').classList.toggle('hidden', !loggedIn || view !== 'tools');
+	$('#tools').classList.toggle('hidden', !loggedIn || (view !== 'tools' && !toolView()));
+	if (loggedIn) renderToolTabs();
 	$('#dev-tab').classList.toggle('hidden', !S.config.devMode);
 	if (view === 'dev' && !S.config.devMode) { showView('idler'); return; }
 	$('#dev').classList.toggle('hidden', !loggedIn || view !== 'dev');
@@ -2249,7 +2744,7 @@ function render() {
 		return;
 	}
 
-	if (view === 'tools') renderTools();
+	if (view === 'tools' || toolView()) renderTools();
 	devStartStop();
 	renderUpdate();
 
