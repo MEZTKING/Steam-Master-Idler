@@ -43,6 +43,15 @@ const TOOLS = [
 		load: () => require('./gallery'),
 	},
 	{
+		id: 'launch',
+		icon: '🚀',
+		name: 'Launch options',
+		description: 'Several launch option configs per game (plus its Default), switched with one click, and templates you can add to any game.',
+		desktopOnly: 'Changes the Steam app\'s settings on this computer, so it only works in the desktop app.',
+		defaults: {},
+		load: () => require('./launch'),
+	},
+	{
 		id: 'achievements',
 		icon: '🏆',
 		name: 'Achievement manager',

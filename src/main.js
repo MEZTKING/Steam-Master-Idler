@@ -186,6 +186,8 @@ app.whenReady().then(async () => {
 	server.events.on('notify', notify);
 	server.events.on('openPath', (dir) => shell.openPath(dir));
 	server.events.on('installUpdate', installUpdate);
+	// restored settings: restart to load them
+	server.events.on('restart', async () => { quitting = true; await server.stop(); app.relaunch(); app.exit(0); });
 	server.events.on('session', updateSleepBlocker);
 	server.events.on('config', updateSleepBlocker);
 	// "Save debug report": put it in Downloads and show it in the file manager

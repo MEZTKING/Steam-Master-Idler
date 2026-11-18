@@ -390,6 +390,15 @@
 	.im-item canvas, .im-item img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 6px; }
 	.im-item.ok { color: var(--good); }
 	.im-item.bad { color: var(--bad); }
+	#sync-folder { width: 100%; height: auto; margin: 0; accent-color: initial; }
+	/* launch options */
+	.lo-row { display: grid; grid-template-columns: 22px minmax(90px, 160px) 1fr auto auto; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+	.lo-row input[type=radio] { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+	.lo-row input[type=text] { min-width: 0; width: 100%; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+	.lo-row.active { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+	.lo-ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 13px; }
+	.lo-ask span { flex: 1; min-width: 200px; }
+	@media (max-width: 560px) { .lo-row { grid-template-columns: 22px 1fr auto auto; } .lo-row input[type=text].opts { grid-column: 2 / -1; } }
 	/* developer view */
 	#dev { display: grid; gap: 20px; }
 	.dev-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 18px; padding: 12px 16px; font-size: 12.5px; }
@@ -711,6 +720,35 @@
 						<span class="error" id="gm-error"></span>
 					</div>
 				</div>
+			</div>
+		</div>
+
+		<!-- 🚀 launch options -->
+		<div class="panel tool" data-tool="launch">
+			<h2><span class="tool-ic">🚀</span> Launch options<span class="spacer"></span>
+				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
+			<div class="tool-desc">Keep several launch option configs per game, for example "Performance" or "Streaming", next to its <b>Default</b> (what Steam had when you first opened the game here), and switch with one click. Steam only reads launch options when it starts, so a change is saved while Steam is closed: either now (Steam restarts) or as soon as you close it.</div>
+			<div class="tool-unavailable empty hidden"></div>
+			<div class="tool-body hidden">
+				<div id="lo-status" class="steam-check"></div>
+				<div class="panel-body">
+					<div class="ach-pick">
+						<input id="lo-game" list="ach-games" placeholder="Game name or AppID…" autocomplete="off">
+						<button class="primary" id="lo-load">Open</button>
+					</div>
+					<div class="error" id="lo-error"></div>
+				</div>
+				<div id="lo-editor" class="hidden">
+					<div class="behavior"><b id="lo-title"></b><span class="muted" id="lo-current"></span></div>
+					<div id="lo-ask" class="lo-ask hidden"></div>
+					<div id="lo-rows"></div>
+					<div class="actions" style="padding:0 16px 14px">
+						<button class="small" id="lo-add">＋ Add config</button>
+						<select id="lo-tpl" class="small" style="padding:3px 8px"><option value="">＋ From template…</option></select>
+					</div>
+				</div>
+				<div class="tool-tabs" id="lo-tabs"><button data-tab="games" class="active">Your games</button><button data-tab="templates">Templates</button></div>
+				<div id="lo-list"></div>
 			</div>
 		</div>
 
@@ -1055,6 +1093,21 @@
 			<label class="opt"><input type="radio" name="cardOrder" value="mostDrops"><span>Games with the most card drops first</span></label>
 			<label class="opt"><input type="radio" name="cardOrder" value="leastDrops"><span>Games with the fewest card drops first</span></label>
 		</fieldset>
+		<fieldset id="sync-set">
+			<legend>Backup &amp; sync</legend>
+			<div class="muted" style="font-size:12px;margin:2px 0 6px">Saves all of this app's settings (tool settings, ratings, upload history, launch option configs, stats) into a folder your Google Drive, OneDrive, Dropbox or iCloud app syncs, so another device can restore them. Your Steam sign-in and password are never included.</div>
+			<div id="sync-detected" class="opt" style="cursor:default;flex-wrap:wrap;gap:6px"></div>
+			<label class="opt" style="cursor:default;display:grid;gap:4px"><span style="font-size:13px">Backup folder</span><input id="sync-folder" placeholder="e.g. G:\My Drive  (empty = off)"></label>
+			<label class="opt"><input type="checkbox" data-k="syncAuto"><span>Back up automatically
+				<small>A couple of minutes after settings change, and once a day.</small></span></label>
+			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
+				<button class="small" id="sync-now">☁ Back up now</button>
+				<a class="small btn" href="/api/sync/export" download>Export to a file</a>
+				<button class="small" id="sync-import">Import a file…</button><input type="file" id="sync-file" accept=".json,application/json" hidden>
+				<span class="muted" id="sync-status" style="font-size:12px"></span>
+			</div>
+			<div id="sync-list"></div>
+		</fieldset>
 		<fieldset>
 			<legend>Updates</legend>
 			<label class="opt"><input type="checkbox" data-k="checkUpdates"><span>Check for updates
@@ -1248,7 +1301,43 @@ $('#settings').addEventListener('change', (e) => {
 	else if (el.dataset.k) setPref({ [el.dataset.k]: el.checked });
 	else if (el.type === 'radio') setPref({ [el.name]: el.value });
 });
-const openSettings = () => { fillSettings(); if (S.update) renderUpdate(); $('#settings').showModal(); };
+// ---------- backup & sync ----------
+let syncInfo = null;
+async function syncLoad() {
+	try { syncInfo = await api('/api/sync'); } catch (e) { $('#sync-status').textContent = e.message; return; }
+	const i = syncInfo;
+	// phones have no synced folder: export/import a file instead
+	for (const el of [$('#sync-detected'), $('#sync-folder').closest('label'), $('#sync-set [data-k="syncAuto"]').closest('label'), $('#sync-now'), $('#sync-list')]) el.classList.toggle('hidden', !!S.mobile);
+	setIfIdle($('#sync-folder'), i.folder);
+	$('#sync-detected').innerHTML = i.detected.length ? '<span class="muted" style="font-size:12px">Found on this computer:</span>' + i.detected.map((d) => `<button class="small" data-sync-use="${esc(d.path)}" title="${esc(d.path)}">${i.folder === d.path ? '✔ ' : ''}${esc(d.name)}</button>`).join('')
+		: '<span class="muted" style="font-size:12px">No Google Drive, OneDrive, Dropbox or iCloud folder found on this computer. Install the app of your cloud drive, or type any folder below.</span>';
+	$('#sync-status').textContent = i.lastError ? `⚠ ${i.lastError}` : i.lastAt ? `Last backup ${ago(i.lastAt)}.` : i.folder ? 'No backup yet.' : '';
+	$('#sync-now').disabled = !i.folder;
+	$('#sync-list').innerHTML = !i.folder ? '' : !i.backups.length ? '<div class="muted" style="font-size:12px;padding:6px 0">No backups in this folder yet.</div>'
+		: `<div class="muted" style="font-size:12px;padding:6px 0 2px">Backups in this folder (from every device):</div>` + i.backups.slice(0, 15).map((b) => `<div class="opt" style="cursor:default;align-items:center;gap:8px;font-size:12.5px">
+			<span style="flex:1">${esc(b.device)}${b.thisDevice ? ' (this computer)' : ''} · ${new Date(b.createdAt).toLocaleString()} · v${esc(b.version || '?')} · ${b.tools.length} tool(s) on</span>
+			<button class="small" data-sync-restore="${esc(b.file)}">Restore</button></div>`).join('');
+}
+$('#sync-detected').onclick = async (e) => { const p = e.target.dataset.syncUse; if (!p) return; await setPref({ syncFolder: p }); syncLoad(); };
+$('#sync-folder').onchange = async (e) => { await setPref({ syncFolder: e.target.value }); syncLoad(); };
+$('#sync-now').onclick = async (e) => { e.target.disabled = true; try { await api('/api/sync/backup-now', {}); } catch (err) { alert(err.message); } e.target.disabled = false; syncLoad(); };
+const syncApplied = (r) => alert(r.restart ? 'Settings restored. The app restarts now.' : 'Settings restored. Restart the app to use them.');
+$('#sync-list').onclick = async (e) => {
+	const f = e.target.dataset.syncRestore; if (!f) return;
+	if (!confirm('Replace this app\'s settings with this backup? Your Steam sign-in stays. The app restarts afterwards.')) return;
+	try { syncApplied(await api('/api/sync/restore', { file: f })); } catch (err) { alert(err.message); }
+};
+$('#sync-import').onclick = () => $('#sync-file').click();
+$('#sync-file').onchange = async (e) => {
+	const f = e.target.files[0]; e.target.value = '';
+	if (!f) return;
+	let backup;
+	try { backup = JSON.parse(await f.text()); } catch { alert("That file isn't a settings backup."); return; }
+	if (!confirm(`Replace this app's settings with the backup from ${backup.device || 'another device'} (${backup.createdAt ? new Date(backup.createdAt).toLocaleString() : '?'})? Your Steam sign-in stays.`)) return;
+	try { syncApplied(await api('/api/sync/import', { backup })); } catch (err) { alert(err.message); }
+};
+
+const openSettings = () => { fillSettings(); if (S.update) renderUpdate(); syncLoad(); $('#settings').showModal(); };
 $('#open-settings').onclick = openSettings;
 $('#cs-change').onclick = openSettings;
 $('#close-settings').onclick = () => $('#settings').close();
@@ -2164,6 +2253,126 @@ function imRenderStates() {
 		el.lastElementChild.textContent = f.state === 'done' ? '✔ imported' : f.state;
 	}
 }
+
+// ----- 🚀 launch options -----
+let loGame = null;       // { appid, name, current, defaultOptions, configs, active, pending, steamRunning }
+let loOverview = null;
+let loTab = 'games';
+let loSaveTimer = null;
+const loPlayUrl = (appid, opts) => `steam://run/${appid}//${encodeURIComponent(opts || '')}/`;
+async function loOpen(appid) {
+	$('#lo-error').textContent = '';
+	try { loGame = await api(`/api/tools/launch/game?appid=${appid}`); loRenderGame(); loRefresh(); }
+	catch (e) { $('#lo-error').textContent = e.message; }
+}
+function loRenderGame() {
+	$('#lo-editor').classList.toggle('hidden', !loGame);
+	if (!loGame) return;
+	const g = loGame;
+	$('#lo-title').textContent = g.name;
+	$('#lo-current').textContent = ` · Steam now uses: ${g.current ? g.current : '(nothing)'}${g.pending != null ? ` · waiting to set: ${g.pending || '(nothing)'}` : ''}`;
+	const rows = [{ id: 'default', name: 'Default', options: g.defaultOptions, fixed: true }, ...g.configs];
+	$('#lo-rows').innerHTML = rows.map((c) => `<div class="lo-row ${g.active === c.id ? 'active' : ''}" data-id="${esc(c.id)}">
+		<input type="radio" name="lo-active" value="${esc(c.id)}" ${g.active === c.id ? 'checked' : ''} title="Use this one">
+		<input type="text" class="lo-name" value="${esc(c.name)}" ${c.fixed ? 'disabled' : ''} placeholder="Name">
+		<input type="text" class="opts lo-opts" value="${esc(c.options)}" placeholder="no launch options">
+		<a class="small btn" href="${loPlayUrl(g.appid, c.options)}" title="Start the game once with these options, without changing anything">▶ Play</a>
+		${c.fixed ? '<span></span>' : '<button class="small" data-del title="Delete this config">✕</button>'}</div>`).join('');
+	$('#lo-tpl').innerHTML = '<option value="">＋ From template…</option>' + (loOverview?.templates || []).map((t) => `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.options)})</option>`).join('');
+}
+function loCollect() {
+	const rows = [...document.querySelectorAll('#lo-rows .lo-row')];
+	loGame.defaultOptions = rows[0].querySelector('.lo-opts').value;
+	loGame.configs = rows.slice(1).map((r) => ({ id: r.dataset.id, name: r.querySelector('.lo-name').value, options: r.querySelector('.lo-opts').value }));
+}
+function loSave() {
+	clearTimeout(loSaveTimer);
+	loSaveTimer = setTimeout(() => api('/api/tools/launch/save', { appid: loGame.appid, configs: loGame.configs, defaultOptions: loGame.defaultOptions }).then(loRefresh).catch((e) => { $('#lo-error').textContent = e.message; }), 500);
+}
+$('#lo-rows').addEventListener('input', (e) => { if (e.target.type === 'text') { loCollect(); loSave(); const a = e.target.closest('.lo-row').querySelector('a'); a.href = loPlayUrl(loGame.appid, e.target.closest('.lo-row').querySelector('.lo-opts').value); } });
+$('#lo-rows').addEventListener('click', (e) => {
+	if ('del' in e.target.dataset) { e.target.closest('.lo-row').remove(); loCollect(); loSave(); loRenderGame(); }
+});
+$('#lo-rows').addEventListener('change', (e) => { if (e.target.name === 'lo-active') loSwitch(e.target.value); });
+$('#lo-add').onclick = () => { loCollect(); loGame.configs.push({ id: Math.random().toString(36).slice(2, 10), name: `Config ${loGame.configs.length + 1}`, options: '' }); loSave(); loRenderGame(); };
+$('#lo-tpl').onchange = (e) => {
+	const t = loOverview?.templates.find((x) => x.id === e.target.value); e.target.value = '';
+	if (!t) return;
+	loCollect(); loGame.configs.push({ id: Math.random().toString(36).slice(2, 10), name: t.name, options: t.options }); loSave(); loRenderGame();
+};
+async function loSwitch(configId, mode) {
+	loCollect();
+	clearTimeout(loSaveTimer);
+	await api('/api/tools/launch/save', { appid: loGame.appid, configs: loGame.configs, defaultOptions: loGame.defaultOptions }).catch(() => {});
+	const ask = $('#lo-ask');
+	if (!mode && loOverview?.steamRunning !== false) {
+		// Steam may be running: ask how
+		const name = configId === 'default' ? 'Default' : loGame.configs.find((c) => c.id === configId)?.name;
+		ask.innerHTML = `<span>Steam is running. Use <b>${esc(name)}</b> for ${esc(loGame.name)}:</span>
+			<button class="small primary" data-mode="now">Restart Steam and apply now</button><button class="small" data-mode="later">When I close Steam</button><button class="small" data-mode="cancel">Cancel</button>`;
+		ask.classList.remove('hidden');
+		ask.onclick = (e) => { const m = e.target.dataset.mode; if (!m) return; ask.classList.add('hidden'); if (m === 'cancel') return loRenderGame(); loSwitch(configId, m); };
+		return;
+	}
+	$('#lo-error').textContent = mode === 'now' ? 'Closing Steam, saving, starting Steam again…' : '';
+	try {
+		const r = await api('/api/tools/launch/switch', { appid: loGame.appid, config: configId, mode: mode || 'later' });
+		$('#lo-error').textContent = r.applied ? (r.restarted ? '✔ Saved, and Steam is starting again.' : '✔ Saved.') : '✔ Saved for later: it\'s applied as soon as you close Steam.';
+	} catch (e) { $('#lo-error').textContent = e.message; }
+	await loOpen(loGame.appid);
+}
+$('#lo-load').onclick = () => { const v = $('#lo-game').value.trim(); const id = /^\d+$/.test(v) ? +v : S.library.find((g) => g.name.toLowerCase() === v.toLowerCase())?.appid; if (!id) { $('#lo-error').textContent = 'Pick a game from your library, or type its AppID.'; return; } loOpen(id); };
+$('#lo-game').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#lo-load').click(); });
+$('#lo-tabs').onclick = (e) => { if (!e.target.dataset.tab) return; loTab = e.target.dataset.tab; document.querySelectorAll('#lo-tabs button').forEach((b) => b.classList.toggle('active', b === e.target)); loRenderList(); };
+async function loRefresh() {
+	try { loOverview = await api('/api/tools/launch/overview'); loRenderList(); } catch (e) { $('#lo-error').textContent = e.message; }
+}
+function loRenderList() {
+	const o = loOverview;
+	if (!o) return;
+	const pend = Object.keys(o.pending).length;
+	$('#lo-status').className = 'steam-check' + (pend ? ' bad' : ' ok');
+	$('#lo-status').innerHTML = `${o.steamRunning ? 'Steam is running.' : 'Steam is closed: changes are saved right away.'}${pend ? ` ${pend} change(s) wait for Steam to close. <button class="linkish" id="lo-apply-now">Restart Steam and apply now</button> · <button class="linkish" id="lo-cancel">Cancel them</button>` : ''}`;
+	const an = $('#lo-apply-now'); if (an) an.onclick = async () => { $('#lo-error').textContent = 'Closing Steam…'; try { await api('/api/tools/launch/apply-pending', { mode: 'now' }); $('#lo-error').textContent = '✔ Applied, Steam is starting again.'; } catch (e) { $('#lo-error').textContent = e.message; } loRefresh(); };
+	const cn = $('#lo-cancel'); if (cn) cn.onclick = () => api('/api/tools/launch/cancel-pending', {}).then(loRefresh);
+	if (loTab === 'games') {
+		showList($('#lo-list'), o.games.map((g) => {
+			const opts = [{ id: 'default', name: 'Default' }, ...g.configs];
+			return `<div class="row">${iconHtml(libGame(g.appid)?.icon)}<div class="name" title="${esc(g.current)}">${esc(g.name)} <span class="muted">· ${esc(g.current || 'no launch options')}</span></div>
+				${g.pending != null ? '<span class="tag bad">waiting for Steam to close</span>' : ''}
+				${g.configs.length ? `<select data-quick="${g.appid}" style="padding:3px 8px;font-size:12.5px">${opts.map((c) => `<option value="${esc(c.id)}" ${g.active === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}${g.active ? '' : '<option selected disabled>(set in Steam)</option>'}</select>` : ''}
+				<button class="small" data-edit="${g.appid}">Edit</button></div>`;
+		}), 'No launch options yet. Open a game above to add configs.');
+	} else {
+		$('#lo-list').innerHTML = `<div class="hint" style="padding:10px 16px">Templates can be added to any game with "＋ From template…".</div>` + o.templates.map((t, i) => `<div class="lo-row" data-i="${i}"><span></span>
+			<input type="text" class="lo-name" value="${esc(t.name)}"><input type="text" class="opts lo-opts" value="${esc(t.options)}"><span></span><button class="small" data-tdel="${i}">✕</button></div>`).join('')
+			+ '<div class="actions" style="padding:0 16px 14px"><button class="small" id="lo-tadd">＋ Add template</button></div>';
+		$('#lo-tadd').onclick = () => { o.templates.push({ name: 'New template', options: '' }); loSaveTemplates(); loRenderList(); };
+	}
+}
+let loTplTimer = null;
+function loSaveTemplates() { clearTimeout(loTplTimer); loTplTimer = setTimeout(() => api('/api/tools/launch/templates', { templates: loOverview.templates }).then(loRefresh), 600); }
+$('#lo-list').addEventListener('input', (e) => {
+	const row = e.target.closest('.lo-row[data-i]'); if (!row) return;
+	const t = loOverview.templates[+row.dataset.i];
+	t.name = row.querySelector('.lo-name').value; t.options = row.querySelector('.lo-opts').value;
+	loSaveTemplates();
+});
+$('#lo-list').addEventListener('click', (e) => {
+	if (e.target.dataset.tdel != null) { loOverview.templates.splice(+e.target.dataset.tdel, 1); loSaveTemplates(); loRenderList(); }
+	if (e.target.dataset.edit) { loOpen(+e.target.dataset.edit); pane('launch').scrollIntoView({ block: 'start' }); }
+});
+$('#lo-list').addEventListener('change', async (e) => {
+	const appid = e.target.dataset.quick; if (!appid) return;
+	await loOpen(+appid);
+	loSwitch(e.target.value);
+});
+TOOL_RENDER.launch = (t) => {
+	achGameList();
+	if (!loOverview && !loRefresh.started) { loRefresh.started = true; loRefresh(); }
+	// keep "Steam is running" fresh while the panel is open (cheap: one process check every few seconds)
+	if (Date.now() - (loRefresh.at || 0) > 8000) { loRefresh.at = Date.now(); loRefresh(); }
+};
 
 // ----- 🏆 achievement manager -----
 let achGame = null;          // loaded game

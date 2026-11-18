@@ -76,4 +76,43 @@ async function runningAppId(steamDir) {
 	return null;
 }
 
-module.exports = { findSteamDir, steamDirCandidates, screenshotsRoot, runningAppId };
+// ---- the Steam app itself: is it running, close it, start it ----
+
+const { spawn } = require('child_process');
+const run = (cmd, args) => new Promise((resolve) => execFile(cmd, args, { encoding: 'utf8', windowsHide: true, timeout: 8000 }, (err, out) => resolve(err ? '' : String(out))));
+
+async function isSteamRunning() {
+	if (process.platform === 'win32') return /steam\.exe/i.test(await run('tasklist', ['/FI', 'IMAGENAME eq steam.exe', '/NH']));
+	if (process.platform === 'darwin') return !!(await run('pgrep', ['-x', 'steam_osx'])).trim();
+	return !!(await run('pgrep', ['-x', 'steam'])).trim() || !!(await run('pgrep', ['-f', 'ubuntu12_32/steam'])).trim();
+}
+
+function steamExe(steamDir) {
+	if (process.platform === 'win32') return path.join(steamDir, 'steam.exe');
+	if (process.platform === 'darwin') return '/Applications/Steam.app/Contents/MacOS/steam_osx';
+	return 'steam';
+}
+
+const detached = (cmd, args) => { try { spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: false }).unref(); return true; } catch { return false; } };
+
+// asks Steam to quit and waits until it has (up to `ms`); true when it's closed
+async function closeSteam(steamDir, ms = 60_000) {
+	if (!(await isSteamRunning())) return true;
+	detached(steamExe(steamDir), ['-shutdown']);
+	const until = Date.now() + ms;
+	while (Date.now() < until) {
+		await new Promise((r) => setTimeout(r, 2000));
+		if (!(await isSteamRunning())) { await new Promise((r) => setTimeout(r, 2000)); return true; }   // let it finish writing its files
+	}
+	return false;
+}
+
+function startSteam(steamDir) {
+	if (process.platform === 'darwin') return detached('open', ['-a', 'Steam']);
+	return detached(steamExe(steamDir), []);
+}
+
+// your localconfig.vdf: launch options and other per-account settings of the Steam app
+const localConfigPath = (steamDir, accountId) => path.join(steamDir, 'userdata', String(accountId), 'config', 'localconfig.vdf');
+
+module.exports = { findSteamDir, steamDirCandidates, screenshotsRoot, runningAppId, isSteamRunning, closeSteam, startSteam, localConfigPath };
