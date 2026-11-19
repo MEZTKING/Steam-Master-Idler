@@ -74,6 +74,7 @@ const config = Object.assign({
 	syncAuto: true,        // ...automatically: a day after the last one, and soon after settings change
 	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
 	autoUpdate: true,      // Windows installer / AppImage: download it in the background, install on restart
+	betaUpdates: false,    // also offer pre-releases (betas)
 	preventSleep: true,    // desktop app only
 	shutdownWhenDone: false,
 	games: [],
@@ -965,7 +966,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['syncAuto', 'devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['syncAuto', 'devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'betaUpdates', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));
@@ -986,6 +987,7 @@ function applySettings(body) {
 	if (body.games) config.games = cleanGames(body.games);
 	writeJson(CONFIG_FILE, config);
 	if ('checkUpdates' in body) updater.schedule();
+	if ('betaUpdates' in body) updater.check().catch(() => {});
 	if (typeof body.syncFolder === 'string') {
 		const f = body.syncFolder.trim();
 		if (f && !path.isAbsolute(f)) throw new Error('Use a full folder path, like G:\\My Drive');

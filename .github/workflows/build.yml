@@ -1,8 +1,12 @@
 name: Build
 
-# Builds installers for Windows, macOS and Linux.
-# - Every push / PR: builds and attaches the installers to the workflow run (Actions tab → run → Artifacts).
-# - Pushing a tag like v1.0.0: also publishes them on a GitHub Release.
+# Runs the tests, then builds installers for Windows, macOS, Linux and Android.
+# - Every push / PR: tests + builds; the installers are attached to the workflow run (Actions tab → run → Artifacts).
+# - Releasing (publishes them on a GitHub Release), either:
+#     Actions tab → Build → Run workflow → tick "Publish a release" (releases the version in package.json), or
+#     pushing a tag like v1.0.0.
+#   A version with "-" in it (1.13.0-beta.1), or "Beta" ticked, becomes a pre-release: only apps with
+#   Settings → Updates → "Get beta versions" offer it.
 
 on:
   push:
@@ -10,12 +14,33 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a release of the version in package.json
+        type: boolean
+        default: false
+      prerelease:
+        description: Beta (pre-release, only offered to apps that get beta versions)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: npm test
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +90,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -119,10 +145,34 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, android]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+    needs: [test, build, android]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # the version being released: the pushed tag, or package.json's version for "Run workflow"
+      - name: Work out the version
+        id: v
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          PRE_INPUT: ${{ inputs.prerelease }}
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$REF_TYPE" = "tag" ]; then tag="$REF_NAME"; else tag="$pkg"; fi
+          if [ "$tag" != "$pkg" ]; then echo "::warning::Tag $tag doesn't match package.json ($pkg)"; fi
+          if [ "$REF_TYPE" != "tag" ] && gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::$tag is already released. Bump the version in package.json first."; exit 1
+          fi
+          pre=false
+          case "$tag" in *-*) pre=true;; esac
+          if [ "$PRE_INPUT" = "true" ]; then pre=true; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (pre-release: $pre)"
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -131,5 +181,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Kettle ${{ steps.v.outputs.tag }}
+          prerelease: ${{ steps.v.outputs.prerelease == 'true' }}
           files: dist/*
           generate_release_notes: true

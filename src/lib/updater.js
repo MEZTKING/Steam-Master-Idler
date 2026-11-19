@@ -18,11 +18,25 @@ const REPO = 'MEZTKING/Steam-Master-Idler';
 const CHECK_EVERY = 12 * 3_600_000;
 const FIRST_CHECK = 60_000;
 
-// "v1.10.2" -> [1, 10, 2]; pre-releases ("1.8.0-beta") count as older than the release
-const parse = (v) => String(v).replace(/^v/, '').split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
+// "v1.13.0-beta.2" -> { nums: [1, 13, 0], pre: ['beta', 2] }
+function parse(v) {
+	const [main, ...rest] = String(v).replace(/^v/, '').split('-');
+	const pre = rest.join('-');
+	return { nums: main.split('.').map((n) => parseInt(n, 10) || 0), pre: pre ? pre.split('.').map((p) => (/^\d+$/.test(p) ? +p : p)) : [] };
+}
+// is a newer than b? Like semver: 1.13.0-beta.1 < 1.13.0-beta.2 < 1.13.0
 function newer(a, b) {
 	const x = parse(a); const y = parse(b);
-	for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+	for (let i = 0; i < 3; i++) if ((x.nums[i] || 0) !== (y.nums[i] || 0)) return (x.nums[i] || 0) > (y.nums[i] || 0);
+	if (!x.pre.length || !y.pre.length) return !x.pre.length && !!y.pre.length;   // a release beats its betas
+	for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+		const p = x.pre[i]; const q = y.pre[i];
+		if (p === undefined) return false;
+		if (q === undefined) return true;
+		if (p === q) continue;
+		if (typeof p === 'number' && typeof q === 'number') return p > q;
+		return String(p) > String(q);
+	}
 	return false;
 }
 
@@ -71,12 +85,18 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 		if (st.checking) return;
 		st.checking = true;
 		try {
-			const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+			// stable: the latest release; "Get beta versions": the newest of the recent releases, betas included
+			const beta = !!getConfig().betaUpdates;
+			const res = await fetch(`https://api.github.com/repos/${REPO}/releases${beta ? '?per_page=15' : '/latest'}`, {
 				headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'kettle-updater' },
 			});
 			if (res.status === 404) throw new Error('No releases published yet.');
 			if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
-			const rel = await res.json();
+			let rel = await res.json();
+			if (beta) {
+				rel = (Array.isArray(rel) ? rel : []).filter((r) => !r.draft).reduce((best, r) => (!best || newer(r.tag_name, best.tag_name) ? r : best), null);
+				if (!rel) throw new Error('No releases published yet.');
+			}
 			st.checkedAt = Date.now();
 			st.error = null;
 			if (!newer(rel.tag_name, version)) {
@@ -86,6 +106,7 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 			}
 			const asset = pickAsset(rel.assets || [], kind);
 			st.latest = String(rel.tag_name).replace(/^v/, '');
+			st.prerelease = !!rel.prerelease;
 			st.notes = String(rel.body || '').slice(0, 4000);
 			st.url = rel.html_url;
 			st.asset = asset ? { name: asset.name, size: asset.size, url: asset.browser_download_url, digest: asset.digest || null } : null;
@@ -168,6 +189,7 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 			checkedAt: st.checkedAt,
 			error: st.error,
 			available: st.latest,
+			prerelease: st.latest ? !!st.prerelease : false,
 			notes: st.latest ? st.notes : null,
 			releaseUrl: st.latest ? st.url : `https://github.com/${REPO}/releases`,
 			downloadUrl: st.asset?.url || null,
