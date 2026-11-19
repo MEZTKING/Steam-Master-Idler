@@ -111,7 +111,7 @@ function saveStats(force = false) {
 	writeJson(STATE_FILE, state);
 }
 
-const LOGON_OPTS = { logonID: state.logonID, machineName: 'Steam Master Idler' };
+const LOGON_OPTS = { logonID: state.logonID, machineName: 'Kettle' };
 const applyPersona = () => { if (PERSONA[config.persona] != null) client.setPersona(PERSONA[config.persona]); };
 
 // ---------- app state ----------
@@ -1184,7 +1184,7 @@ const routes = {
 	'GET /api/debug-report': () => {
 		const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
 		const body = [
-			`Steam Master Idler debug report - ${new Date().toISOString()}`,
+			`Kettle debug report - ${new Date().toISOString()}`,
 			'Tokens, cookie values and passwords are removed.',
 			'',
 			'=== Diagnostics ===',
@@ -1193,7 +1193,7 @@ const routes = {
 			'=== Debug log (newest last) ===',
 			debugLog.tail(4000),
 		].join('\n');
-		return { raw: true, type: 'text/plain; charset=utf-8', filename: `steam-master-idler-debug-${stamp}.txt`, body };
+		return { raw: true, type: 'text/plain; charset=utf-8', filename: `kettle-debug-${stamp}.txt`, body };
 	},
 
 	'POST /api/open-logs': () => {
@@ -1257,7 +1257,7 @@ const routes = {
 	'POST /api/sync/restore': (body) => applyBackup(sync.readBackup(config.syncFolder, String(body.file || ''))),
 	'GET /api/sync/export': () => {
 		const b = sync.makeBackup({ config, state, version: VERSION });
-		return { raw: true, type: 'application/json', filename: `steam-master-idler-settings-${new Date().toISOString().slice(0, 10)}.json`, body: JSON.stringify(b, null, 1) };
+		return { raw: true, type: 'application/json', filename: `kettle-settings-${new Date().toISOString().slice(0, 10)}.json`, body: JSON.stringify(b, null, 1) };
 	},
 	'POST /api/sync/import': (body) => applyBackup(sync.validate(body.backup)),
 

@@ -72,7 +72,7 @@ function parseGameSpec(spec) {
 }
 
 const HELP = `
-Steam Master Idler (command line)
+Kettle (command line)
 
 Usage:
   npm run cli --                     idle the games in config.json
@@ -120,7 +120,7 @@ async function main() {
 		state.logonID = 1 + Math.floor(Math.random() * 0xfffffffe);
 		writeJson(STATE_FILE, state);
 	}
-	const LOGON_OPTS = { logonID: state.logonID, machineName: 'Steam Master Idler' };
+	const LOGON_OPTS = { logonID: state.logonID, machineName: 'Kettle' };
 
 	const client = new SteamUser({ autoRelogin: true, renewRefreshTokens: true });
 

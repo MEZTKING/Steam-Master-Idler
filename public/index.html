@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Steam Master Idler</title>
+<title>Kettle</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
 <style>
 	:root {
@@ -427,7 +427,7 @@
 <body>
 
 <header>
-	<h1>Steam Master Idler <span id="version" class="muted" style="font-size:12px;font-weight:400"></span></h1>
+	<h1>Kettle <span id="version" class="muted" style="font-size:12px;font-weight:400"></span></h1>
 	<span id="status-pill" class="pill">offline</span>
 	<span class="spacer"></span>
 	<span id="account" class="muted"></span>
@@ -643,7 +643,7 @@
 		<div class="panel tool" data-tool="screenshots">
 			<h2><span class="tool-ic">📷</span> Screenshot uploader<span class="spacer"></span>
 				<label class="switch"><input type="checkbox" data-enable> <span class="onoff">Off</span></label></h2>
-			<div class="tool-desc">Take screenshots in your games as usual (F12 in Steam). When you close the game, the new ones are uploaded to your Steam screenshot library on their own, set to <b>Private</b> unless you choose otherwise. Keep Steam Master Idler running in the tray.</div>
+			<div class="tool-desc">Take screenshots in your games as usual (F12 in Steam). When you close the game, the new ones are uploaded to your Steam screenshot library on their own, set to <b>Private</b> unless you choose otherwise. Keep Kettle running in the tray.</div>
 			<div class="tool-unavailable empty hidden"></div>
 			<div class="tool-body hidden">
 				<div class="stats">
@@ -1121,7 +1121,7 @@
 		</fieldset>
 		<fieldset>
 			<legend>Troubleshooting</legend>
-			<div class="muted" style="font-size:12px">Steam Master Idler <span id="diag-version"></span></div>
+			<div class="muted" style="font-size:12px">Kettle <span id="diag-version"></span></div>
 			<label class="opt"><input type="checkbox" data-k="devMode"><span>Developer mode
 				<small>Adds a 🛠 Developer tab: a live, searchable log of everything the app and Steam do, plus system info (memory, versions, what's running).</small></span></label>
 			<label class="opt" id="opt-devverbose"><input type="checkbox" data-k="devVerbose"><span>Detailed Steam traffic
@@ -2921,7 +2921,7 @@ function render() {
 		: !s ? 'ready' : s.paused ? 'paused'
 		: s.method === 'steamApp' && s.games.some((g) => g.active) && s.games.filter((g) => g.active).every((g) => g.helper?.state === 'failed') ? 'waiting for Steam'
 		: !paused ? 'idling' : s.blocked ? 'paused · playing elsewhere' : 'reconnecting';
-	document.title = s && !paused ? '▶ Steam Master Idler' : 'Steam Master Idler';
+	document.title = s && !paused ? '▶ Kettle' : 'Kettle';
 
 	if (!loggedIn) {
 		const out = S.status === 'loggedOut';

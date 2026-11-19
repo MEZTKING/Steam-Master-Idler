@@ -1,8 +1,10 @@
 <p align="center"><img src="assets/icon.png" width="120" alt=""></p>
 
-<h1 align="center">Steam Master Idler</h1>
+<h1 align="center">Kettle</h1>
 
-<p align="center">Idle your Steam games until they hit the hours you want, and farm trading-card drops,<br>without running the games or even the Steam client.</p>
+<p align="center"><b>A companion for Steam.</b> Idle your games for hours and card drops without running them,<br>upload and manage your screenshots, switch launch options, and a toolbox of more Steam extras.</p>
+
+<p align="center"><sub>Formerly <i>Steam Master Idler</i>. Updating keeps your settings, sign-in and stats.<br>Not affiliated with Valve or Steam.</sub></p>
 
 ---
 
@@ -179,7 +181,7 @@ Every 1 hour to 1 week, puts a different item you own on your profile: backgroun
 
 Settings → **Backup & sync** saves all of this app's settings (tool settings, screenshot ratings and upload history, launch option configs, stats, ...) as one file into a folder your cloud drive keeps in sync, so your next device can restore them:
 
-1. Pick a folder: the app finds your **Google Drive**, **OneDrive**, **Dropbox** and **iCloud Drive** folders on this computer (click one), or type any folder. Backups go into a `Steam Master Idler` folder inside it.
+1. Pick a folder: the app finds your **Google Drive**, **OneDrive**, **Dropbox** and **iCloud Drive** folders on this computer (click one), or type any folder. Backups go into a `Kettle` folder inside it (backups made under the old name, in `Steam Master Idler`, are listed too).
 2. **Back up automatically** (on by default): a couple of minutes after settings change, and once a day. Or **☁ Back up now**. The newest 20 per device are kept.
 3. On the new device: choose the same cloud folder, then **Restore** next to the backup you want (from any device). The app restarts with those settings.
 
@@ -203,17 +205,19 @@ Each tool is listed in `src/tools/index.js` (name, description, default settings
 
 ## Download
 
+> **Coming from Steam Master Idler?** Kettle is the same app with a new name. Install it over the old version (Windows installer, Android APK) or use the in-app updater: on first start your settings, Steam sign-in, stats and backups move to Kettle's data folder. On Windows, tick *Start when I log in* in the tray menu again if you used it. On Linux the `.deb` is now called `kettle`; remove the old `steam-master-idler` package afterwards.
+
 Grab the installer for your system from the [Releases](https://github.com/MEZTKING/Steam-Master-Idler/releases) page:
 
 | System | File |
 |---|---|
-| Windows | `Steam-Master-Idler-Setup-x.y.z.exe` (installer) or `…-Portable-x.y.z.exe` (no install) |
-| macOS | `Steam-Master-Idler-x.y.z-arm64.dmg` (Apple Silicon) or `…-x64.dmg` (Intel) |
+| Windows | `Kettle-Setup-x.y.z.exe` (installer) or `Kettle-Portable-x.y.z.exe` (no install) |
+| macOS | `Kettle-x.y.z-arm64.dmg` (Apple Silicon) or `…-x64.dmg` (Intel) |
 | Linux | `.AppImage` or `.deb` |
 
 The builds aren't code-signed, so the first launch shows a warning:
 - **Windows:** "Windows protected your PC" → *More info* → *Run anyway*.
-- **macOS:** right-click the app → *Open* → *Open*. Or run `xattr -cr "/Applications/Steam Master Idler.app"`.
+- **macOS:** right-click the app → *Open* → *Open*. Or run `xattr -cr "/Applications/Kettle.app"`.
 
 ## Android
 
@@ -221,7 +225,7 @@ The same app runs on Android 7.0 and newer. Grab the APK from the [Releases](htt
 
 | Phone | File |
 |---|---|
-| Almost every phone from the last ~8 years | `Steam-Master-Idler-x.y.z-arm64-v8a.apk` |
+| Almost every phone from the last ~8 years | `Kettle-x.y.z-arm64-v8a.apk` |
 | Older 32-bit phones | `…-armeabi-v7a.apk` |
 | Not sure | `…-universal.apk` (bigger, works everywhere) |
 

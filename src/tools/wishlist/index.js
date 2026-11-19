@@ -139,7 +139,7 @@ function create(ctx) {
 
 	async function newsCheck(appid) {
 		const r = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=8&maxlength=800&format=json`,
-			{ headers: { 'User-Agent': 'steam-master-idler' } });
+			{ headers: { 'User-Agent': 'kettle' } });
 		if (!r.ok) throw new Error(`HTTP ${r.status}`);
 		const news = (await r.json()).appnews?.newsitems || [];
 		for (const n of news) {

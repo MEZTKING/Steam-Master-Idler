@@ -29,7 +29,7 @@ public class MainActivity extends Activity {
     private static final String BG = "#0f141b";
     private static final String SPLASH = "<html><body style='margin:0;background:" + BG + ";color:#8a98a8;"
             + "font:16px system-ui,sans-serif;display:flex;height:100vh;align-items:center;justify-content:center'>"
-            + "Starting Steam Master Idler…</body></html>";
+            + "Starting Kettle…</body></html>";
 
     private WebView web;
     private String base;
@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (System.currentTimeMillis() - waitingSince > 60_000) {
-            web.loadDataWithBaseURL(null, SPLASH.replace("Starting Steam Master Idler…",
+            web.loadDataWithBaseURL(null, SPLASH.replace("Starting Kettle…",
                     "The idler didn't start. Close the app from Recents and open it again."), "text/html", "utf-8", null);
             return;
         }
@@ -129,7 +129,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Keep idling in the background")
                 .setMessage("Android pauses apps in the background to save battery, which would stop idling. "
-                        + "Allow Steam Master Idler to run unrestricted?")
+                        + "Allow Kettle to run unrestricted?")
                 .setPositiveButton("Allow", (d, w) -> {
                     try {
                         startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,

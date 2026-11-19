@@ -9,8 +9,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const SUBFOLDER = 'Steam Master Idler';
-const PREFIX = 'steam-master-idler-';
+const SUBFOLDER = 'Kettle';
+const PREFIX = 'kettle-';
+// from before the app was renamed: still listed and restorable
+const OLD_SUBFOLDER = 'Steam Master Idler';
+const OLD_PREFIX = 'steam-master-idler-';
+const APP_IDS = ['kettle', 'steam-master-idler'];
 const KEEP_PER_DEVICE = 20;
 // state that belongs to this install only
 const LOCAL_STATE = ['logonID', 'resume'];
@@ -52,15 +56,15 @@ function makeBackup({ config, state, version }) {
 	delete cfg.password;
 	const st = { ...state };
 	for (const k of LOCAL_STATE) delete st[k];
-	return { app: 'steam-master-idler', format: 1, version, createdAt: new Date().toISOString(), device: os.hostname(), platform: process.platform, config: cfg, state: st };
+	return { app: 'kettle', format: 1, version, createdAt: new Date().toISOString(), device: os.hostname(), platform: process.platform, config: cfg, state: st };
 }
 
 function validate(b) {
-	if (!b || b.app !== 'steam-master-idler' || b.format !== 1 || typeof b.config !== 'object' || typeof b.state !== 'object') throw new Error("That isn't a Steam Master Idler settings backup.");
+	if (!b || !APP_IDS.includes(b.app) || b.format !== 1 || typeof b.config !== 'object' || typeof b.state !== 'object') throw new Error("That isn't a Kettle settings backup.");
 	return b;
 }
 
-// write a backup into <folder>/Steam Master Idler/, keep the newest per device
+// write a backup into <folder>/Kettle/, keep the newest per device
 function writeBackup(folder, backup) {
 	const dir = backupDir(folder);
 	fs.mkdirSync(dir, { recursive: true });
@@ -74,22 +78,29 @@ function writeBackup(folder, backup) {
 	return name;
 }
 
-// backups in the folder (from every device), newest first
+// backups in the folder (from every device, and from before the rename), newest first.
+// file is "Kettle/<name>" or "Steam Master Idler/<name>"
 function listBackups(folder) {
-	const dir = backupDir(folder);
-	let files = [];
-	try { files = fs.readdirSync(dir).filter((f) => f.startsWith(PREFIX) && f.endsWith('.json')); } catch { return []; }
-	return files.map((f) => {
-		const b = readJson(path.join(dir, f));
-		if (!b || b.app !== 'steam-master-idler') return null;
-		const tools = Object.entries(b.config?.tools || {}).filter(([, c]) => c?.enabled).map(([id]) => id);
-		return { file: f, createdAt: b.createdAt, device: b.device, platform: b.platform, version: b.version, size: fs.statSync(path.join(dir, f)).size, tools, thisDevice: b.device === os.hostname() };
-	}).filter(Boolean).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+	const out = [];
+	for (const [sub, prefix] of [[SUBFOLDER, PREFIX], [OLD_SUBFOLDER, OLD_PREFIX]]) {
+		const dir = path.join(folder, sub);
+		let files = [];
+		try { files = fs.readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith('.json')); } catch { continue; }
+		for (const f of files) {
+			const b = readJson(path.join(dir, f));
+			if (!b || !APP_IDS.includes(b.app)) continue;
+			const tools = Object.entries(b.config?.tools || {}).filter(([, c]) => c?.enabled).map(([id]) => id);
+			out.push({ file: `${sub}/${f}`, createdAt: b.createdAt, device: b.device, platform: b.platform, version: b.version, size: fs.statSync(path.join(dir, f)).size, tools, thisDevice: b.device === os.hostname() });
+		}
+	}
+	return out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 function readBackup(folder, file) {
-	if (!/^[\w.-]+\.json$/.test(file) || !file.startsWith(PREFIX)) throw new Error('Bad backup name');
-	return validate(readJson(path.join(backupDir(folder), file)));
+	const [sub, name] = String(file).includes('/') ? String(file).split('/') : [SUBFOLDER, String(file)];
+	const ok = (sub === SUBFOLDER && name.startsWith(PREFIX)) || (sub === OLD_SUBFOLDER && name.startsWith(OLD_PREFIX));
+	if (!ok || !/^[\w.-]+\.json$/.test(name)) throw new Error('Bad backup name');
+	return validate(readJson(path.join(folder, sub, name)));
 }
 
 // the config + state to put in place on this device (keeping what belongs to this install)

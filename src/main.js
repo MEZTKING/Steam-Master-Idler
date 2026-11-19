@@ -14,6 +14,35 @@ if (!app.requestSingleInstanceLock()) {
 	return;
 }
 
+// The app used to be called "Steam Master Idler", and Electron names the data folder after the app.
+// On Kettle's first start, move the old folder's data over (settings, sign-in, stats, backups).
+function moveOldData() {
+	const fs = require('fs');
+	const oldDir = path.join(app.getPath('appData'), 'Steam Master Idler');
+	const newDir = app.getPath('userData');
+	if (path.resolve(oldDir) === path.resolve(newDir) || !fs.existsSync(path.join(oldDir, 'config.json')) || fs.existsSync(path.join(newDir, 'config.json'))) return;
+	fs.mkdirSync(newDir, { recursive: true });
+	const KEEP = ['config.json', 'state.json', '.session', 'logs', 'steam-user', 'backups', 'screenshot-backups', 'launch-option-backups'];
+	for (const name of KEEP) {
+		const from = path.join(oldDir, name);
+		const to = path.join(newDir, name);
+		if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+		try {
+			fs.renameSync(from, to);
+		} catch {
+			try { fs.cpSync(from, to, { recursive: true }); } catch { /* leave it where it was */ }
+		}
+	}
+	// paths saved in the settings that pointed into the old folder
+	try {
+		const f = path.join(newDir, 'config.json');
+		const text = fs.readFileSync(f, 'utf8');
+		const esc = JSON.stringify(oldDir).slice(1, -1);
+		if (text.includes(esc)) fs.writeFileSync(f, text.split(esc).join(JSON.stringify(newDir).slice(1, -1)));
+	} catch { /* fine */ }
+}
+try { moveOldData(); } catch (err) { console.error('moving old data failed:', err); }
+
 // keep config / login / state in the per-user app data folder, not the install folder
 process.env.IDLER_DATA_DIR = app.getPath('userData');
 process.env.IDLER_DESKTOP = '1';   // shows the desktop-only settings in the page
@@ -34,7 +63,7 @@ function createWindow() {
 		height: 800,
 		minWidth: 420,
 		minHeight: 500,
-		title: 'Steam Master Idler',
+		title: 'Kettle',
 		icon: ICON,
 		backgroundColor: '#0f141b',
 		autoHideMenuBar: true,
@@ -90,7 +119,7 @@ function showWindow() {
 }
 
 function notify(body) {
-	if (Notification.isSupported()) new Notification({ title: 'Steam Master Idler', body, icon: ICON }).show();
+	if (Notification.isSupported()) new Notification({ title: 'Kettle', body, icon: ICON }).show();
 }
 
 // "Prevent sleep": keep the computer awake while idling
@@ -104,7 +133,7 @@ function updateSleepBlocker() {
 function buildTrayMenu() {
 	const startAtLogin = app.getLoginItemSettings().openAtLogin;
 	tray.setContextMenu(Menu.buildFromTemplate([
-		{ label: 'Open Steam Master Idler', click: showWindow },
+		{ label: 'Open Kettle', click: showWindow },
 		{ type: 'separator' },
 		{
 			label: 'Start when I log in',
@@ -122,11 +151,11 @@ function buildTrayMenu() {
 
 function createTray() {
 	tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
-	tray.setToolTip('Steam Master Idler');
+	tray.setToolTip('Kettle');
 	tray.on('click', showWindow);
 	buildTrayMenu();
 	server.events.on('log', () => {
-		tray.setToolTip(server.isIdling() ? 'Steam Master Idler - idling' : 'Steam Master Idler');
+		tray.setToolTip(server.isIdling() ? 'Kettle - idling' : 'Kettle');
 	});
 }
 
