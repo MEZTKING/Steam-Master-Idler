@@ -1,7 +1,7 @@
 {
   "name": "kettle",
   "productName": "Kettle",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Kettle, a companion for Steam: idle games for hours and card drops, upload and manage screenshots, launch options, achievements, wishlist alerts and more.",
   "main": "src/main.js",
   "author": "MEZTKING",
