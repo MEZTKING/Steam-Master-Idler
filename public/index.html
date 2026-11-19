@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kettle</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8IS0tIEtldHRsZSBhcHAgaWNvbjogdGhlIHNvdXJjZSBvZiBldmVyeSBpY29uIFBORyAobnBtIHJ1biBpY29ucykgLS0+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzJhN2ZkNCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwZjI3NDIiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InNoaW5lIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIuMTgiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIuNSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHJ4PSIyMiIgZmlsbD0idXJsKCNiZykiLz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHJ4PSIyMiIgZmlsbD0idXJsKCNzaGluZSkiLz4KICA8ZyBpZD0ia2V0dGxlIiBmaWxsPSIjZmZmIiBzdHJva2U9IiNmZmYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8IS0tIHN0ZWFtIC0tPgogICAgPHBhdGggZD0iTTIyIDM3Yy00LTQuNSA0LTcuNSAwLTEyczQtNy41IDAtMTIiIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iNC4yIiBvcGFjaXR5PSIuOSIvPgogICAgPHBhdGggZD0iTTMzIDMxYy0zLTMuNSAzLTYgMC05LjUiIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMy42IiBvcGFjaXR5PSIuNjUiLz4KICAgIDwhLS0gaGFuZGxlIC0tPgogICAgPHBhdGggZD0iTTM3IDQ3YzAtMTYgMzQtMTYgMzQgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSI1LjUiLz4KICAgIDwhLS0gbGlkIGFuZCBrbm9iIC0tPgogICAgPGNpcmNsZSBjeD0iNTQiIGN5PSI0MC41IiByPSIzLjYiIHN0cm9rZT0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQyIDQ3LjVjNC00LjUgMjAtNC41IDI0IDB6IiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDwhLS0gc3BvdXQgLS0+CiAgICA8cGF0aCBkPSJNMzcgNjQgMjIgNDkuNWMtMS4yLTEuMi40LTMgMS44LTIuMUw0MiA1OC41eiIgc3Ryb2tlLXdpZHRoPSIzLjYiLz4KICAgIDwhLS0gYm9keSBhbmQgYmFzZSAtLT4KICAgIDxwYXRoIGQ9Ik0zMyA4MGMwLTE3IDYtMzAgMjEtMzBzMjEgMTMgMjEgMzB6IiBzdHJva2U9Im5vbmUiLz4KICAgIDxyZWN0IHg9IjMwIiB5PSI3NyIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjgiIHJ4PSI0IiBzdHJva2U9Im5vbmUiLz4KICA8L2c+Cjwvc3ZnPgo=">
 <style>
 	:root {
 		--bg: #0f141b;
@@ -399,6 +399,20 @@
 	.lo-ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 13px; }
 	.lo-ask span { flex: 1; min-width: 200px; }
 	@media (max-width: 560px) { .lo-row { grid-template-columns: 22px 1fr auto auto; } .lo-row input[type=text].opts { grid-column: 2 / -1; } }
+	/* first-run screen */
+	dialog#welcome { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 0; width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+	dialog#welcome::backdrop { background: rgba(0, 0, 0, .6); }
+	.wl-head { display: flex; gap: 14px; align-items: center; padding: 18px 20px 6px; }
+	.wl-head img { width: 52px; height: 52px; }
+	.wl-head h2 { margin: 0; font-size: 20px; }
+	.wl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 12px 20px; overflow-y: auto; max-height: 60vh; }
+	.wl-card { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--panel-2); }
+	.wl-card input { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); }
+	.wl-card b { font-size: 13.5px; }
+	.wl-card small { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.35; }
+	.wl-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel-2)); }
+	.wl-card.off { opacity: .5; cursor: default; }
+	.wl-foot { display: flex; gap: 10px; align-items: center; padding: 12px 20px 18px; flex-wrap: wrap; }
 	/* developer view */
 	#dev { display: grid; gap: 20px; }
 	.dev-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 18px; padding: 12px 16px; font-size: 12.5px; }
@@ -1044,6 +1058,14 @@
 		<span class="error" id="im-error"></span>
 		<button id="im-cancel">Cancel</button><button class="primary" id="im-go" disabled>Import</button>
 	</div>
+</dialog>
+
+<dialog id="welcome">
+	<div class="wl-head"><img src="data:," id="wl-icon" alt=""><div><h2>Welcome to Kettle</h2>
+		<div class="muted" style="font-size:13px">Idling hours and card drops is always here (🎮 Idler). What else should Kettle do for you? Pick as many as you like: everything else stays off and uses nothing. You can change this any time under 🧰 Tools.</div></div></div>
+	<div class="wl-grid" id="wl-grid"></div>
+	<div class="wl-foot"><span class="muted" id="wl-count" style="font-size:13px;flex:1"></span>
+		<button id="wl-skip">Not now</button><button class="primary" id="wl-go">Start</button></div>
 </dialog>
 
 <dialog id="settings">
@@ -2843,6 +2865,42 @@ $('#dev-copy').onclick = (e) => copyText(devFilter().list.map((x) => `${new Date
 $('#dev-copy-info').onclick = (e) => copyText(JSON.stringify(devRenderInfo.last || {}, null, 2), e.target);
 document.addEventListener('visibilitychange', devStartStop);
 
+// ---------- first-run screen ----------
+
+const wlPicked = new Set();
+function maybeWelcome() {
+	// once, on a fresh install: not shown when tools are already on (updates from older versions)
+	if (S.config.onboarded || maybeWelcome.shown || (S.tools || []).some((t) => t.enabled)) return;
+	maybeWelcome.shown = true;
+	$('#wl-icon').src = document.querySelector('link[rel=icon]')?.href || '';
+	const grid = $('#wl-grid');
+	grid.innerHTML = S.tools.map((t) => `<label class="wl-card ${t.available ? '' : 'off'}" data-id="${t.id}" title="${esc(t.available ? '' : t.reason || '')}">
+		<input type="checkbox" ${t.available ? '' : 'disabled'}><b>${t.icon} ${esc(t.name)}</b><small>${esc(t.available ? t.description : t.reason || t.description)}</small></label>`).join('');
+	wlCount();
+	$('#welcome').showModal();
+}
+function wlCount() {
+	$('#wl-count').textContent = wlPicked.size ? `${wlPicked.size} tool${wlPicked.size === 1 ? '' : 's'} picked` : 'Nothing picked: just the idler.';
+	$('#wl-go').textContent = wlPicked.size ? `Start with ${wlPicked.size} tool${wlPicked.size === 1 ? '' : 's'}` : 'Start';
+}
+$('#wl-grid').addEventListener('change', (e) => {
+	const card = e.target.closest('.wl-card');
+	if (e.target.checked) wlPicked.add(card.dataset.id); else wlPicked.delete(card.dataset.id);
+	card.classList.toggle('on', e.target.checked);
+	wlCount();
+});
+async function wlDone(enable) {
+	$('#wl-go').disabled = true;
+	for (const id of enable ? wlPicked : []) { try { await api(`/api/tools/${id}/enable`, { enabled: true }); } catch (e) { alert(e.message); } }
+	await api('/api/settings', { onboarded: true }).catch(() => {});
+	$('#welcome').close();
+	if (enable && wlPicked.size) showView('tools');
+	poll();
+}
+$('#wl-go').onclick = () => wlDone(true);
+$('#wl-skip').onclick = () => wlDone(false);
+$('#welcome').addEventListener('cancel', () => api('/api/settings', { onboarded: true }).catch(() => {}));
+
 // ---------- updates ----------
 
 const fmtMB = (b) => `${(b / 1048576).toFixed(1)} MB`;
@@ -2958,6 +3016,8 @@ function render() {
 	if (view === 'tools' || toolView()) renderTools();
 	devStartStop();
 	renderUpdate();
+
+	maybeWelcome();
 
 	if (!settingsLoaded) {
 		settingsLoaded = true;
