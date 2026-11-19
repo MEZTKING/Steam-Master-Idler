@@ -42,7 +42,7 @@ public class IdleService extends Service {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "Idling status", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Shows what Steam Master Idler is doing while it runs in the background");
+            ch.setDescription("Shows what Kettle is doing while it runs in the background");
             nm.createNotificationChannel(ch);
         }
         Notification n = build("Starting…");
@@ -131,7 +131,7 @@ public class IdleService extends Service {
                 new Intent(this, IdleService.class).setAction(ACTION_QUIT), immutable);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_stat_idle)
-                .setContentTitle("Steam Master Idler")
+                .setContentTitle("Kettle")
                 .setContentText(text)
                 .setContentIntent(open)
                 .setOngoing(true)

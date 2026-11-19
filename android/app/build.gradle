@@ -83,10 +83,10 @@ android {
     }
 }
 
-// APK names: Steam-Master-Idler-<version>-<abi>.apk
+// APK names: Kettle-<version>-<abi>.apk
 android.applicationVariants.configureEach { variant ->
     variant.outputs.configureEach { output ->
         def abi = output.getFilter(com.android.build.OutputFile.ABI) ?: 'universal'
-        outputFileName = "Steam-Master-Idler-${variant.versionName}-${abi}.apk"
+        outputFileName = "Kettle-${variant.versionName}-${abi}.apk"
     }
 }

@@ -24,7 +24,7 @@ async function webRequest(web, url, { method = 'GET', form = null, json = true }
 	let host;
 	for (let hop = 0; ; hop++) {
 		host = new URL(url).hostname;
-		const headers = { Cookie: cookieHeader(web.cookies, host), 'User-Agent': 'Mozilla/5.0 steam-master-idler' };
+		const headers = { Cookie: cookieHeader(web.cookies, host), 'User-Agent': 'Mozilla/5.0 kettle' };
 		let body;
 		if (form) {
 			headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';

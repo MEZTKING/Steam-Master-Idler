@@ -1,8 +1,8 @@
 {
-  "name": "steam-master-idler",
-  "productName": "Steam Master Idler",
-  "version": "1.10.0",
-  "description": "Desktop app to idle Steam games until a playtime target is reached, and farm trading-card drops.",
+  "name": "kettle",
+  "productName": "Kettle",
+  "version": "1.11.0",
+  "description": "Kettle, a companion for Steam: idle games for hours and card drops, upload and manage screenshots, launch options, achievements, wishlist alerts and more.",
   "main": "src/main.js",
   "author": "MEZTKING",
   "homepage": "https://github.com/MEZTKING/Steam-Master-Idler",
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.meztking.steammasteridler",
-    "productName": "Steam Master Idler",
+    "productName": "Kettle",
     "files": [
       "src/**/*",
       "public/**/*",
@@ -40,10 +40,10 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Steam-Master-Idler-Setup-${version}.${ext}"
+      "artifactName": "Kettle-Setup-${version}.${ext}"
     },
     "portable": {
-      "artifactName": "Steam-Master-Idler-Portable-${version}.${ext}"
+      "artifactName": "Kettle-Portable-${version}.${ext}"
     },
     "mac": {
       "target": [
@@ -57,7 +57,7 @@
       ],
       "category": "public.app-category.games",
       "icon": "assets/icon.png",
-      "artifactName": "Steam-Master-Idler-${version}-${arch}.${ext}"
+      "artifactName": "Kettle-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -66,7 +66,7 @@
       ],
       "category": "Game",
       "icon": "assets/icon.png",
-      "artifactName": "Steam-Master-Idler-${version}-${arch}.${ext}",
+      "artifactName": "Kettle-${version}-${arch}.${ext}",
       "maintainer": "MEZTKING <MEZTKING@users.noreply.github.com>"
     },
     "asarUnpack": [

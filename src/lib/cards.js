@@ -44,7 +44,7 @@ async function fetchPage(steamID64, cookies, page, trace) {
 		const entry = { url: url.replace(/^https:\/\/steamcommunity\.com/, '') };
 		trace.push(entry);
 		const res = await fetch(url, {
-			headers: { Cookie: cookies.join('; '), 'User-Agent': 'Mozilla/5.0 steam-master-idler' },
+			headers: { Cookie: cookies.join('; '), 'User-Agent': 'Mozilla/5.0 kettle' },
 			redirect: 'manual',
 		});
 		entry.status = res.status;

@@ -79,7 +79,7 @@ function create(ctx) {
 		for (const it of todo) {
 			if (stopped || !ctx.isLoggedIn()) break;
 			const url = `https://steamcommunity.com/market/priceoverview/?appid=753&currency=${currency()}&market_hash_name=${encodeURIComponent(it.hash)}`;
-			const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 steam-master-idler' } });
+			const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 kettle' } });
 			if (r.status === 429) {   // too many: wait and carry on later
 				ctx.debug('market: rate limited, pausing 5 min');
 				await new Promise((res) => setTimeout(res, 5 * 60_000));

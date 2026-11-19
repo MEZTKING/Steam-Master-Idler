@@ -72,7 +72,7 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 		st.checking = true;
 		try {
 			const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-				headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'steam-master-idler-updater' },
+				headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'kettle-updater' },
 			});
 			if (res.status === 404) throw new Error('No releases published yet.');
 			if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
@@ -91,7 +91,7 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 			st.asset = asset ? { name: asset.name, size: asset.size, url: asset.browser_download_url, digest: asset.digest || null } : null;
 			if (announced !== st.latest) {
 				announced = st.latest;
-				log(`⬆ Steam Master Idler v${st.latest} is available (you have v${version}). Open Settings → Updates, or the banner at the top.`, true);
+				log(`⬆ Kettle v${st.latest} is available (you have v${version}). Open Settings → Updates, or the banner at the top.`, true);
 			}
 			if (getConfig().autoUpdate && st.asset && ['nsis', 'appimage'].includes(kind) && !st.ready) download().catch(() => {});
 		} catch (err) {
@@ -113,7 +113,7 @@ function createUpdater({ version, dataDir, desktop, mobile, log, debug, events, 
 		const part = `${file}.part`;
 		st.download = { done: 0, total: st.asset.size || 0 };
 		try {
-			const res = await fetch(st.asset.url, { headers: { 'User-Agent': 'steam-master-idler-updater' } });
+			const res = await fetch(st.asset.url, { headers: { 'User-Agent': 'kettle-updater' } });
 			if (!res.ok || !res.body) throw new Error(`Download failed (HTTP ${res.status})`);
 			const out = fs.createWriteStream(part);
 			const hash = crypto.createHash('sha256');

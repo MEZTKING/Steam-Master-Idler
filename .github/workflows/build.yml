@@ -49,14 +49,14 @@ jobs:
         shell: pwsh
         run: |
           $env:ELECTRON_RUN_AS_NODE = '1'
-          $out = & "dist/win-unpacked/Steam Master Idler.exe" "dist/win-unpacked/resources/app.asar.unpacked/src/steamapp/helper.js" "C:\Windows\System32\kernel32.dll" 440 2>&1 | Out-String
+          $out = & "dist/win-unpacked/Kettle.exe" "dist/win-unpacked/resources/app.asar.unpacked/src/steamapp/helper.js" "C:\Windows\System32\kernel32.dll" 440 2>&1 | Out-String
           Write-Host $out
           if ($out -notmatch 'no usable entry points') { throw 'helper did not load koffi + DLL as expected' }
           exit 0   # the helper itself exits 1 here on purpose
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Steam-Master-Idler-${{ runner.os }}
+          name: Kettle-${{ runner.os }}
           path: |
             dist/*.exe
             dist/*.dmg
@@ -88,7 +88,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Steam-Master-Idler-Android
+          name: Kettle-Android
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
@@ -126,7 +126,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: Steam-Master-Idler-*
+          pattern: Kettle-*
           merge-multiple: true
 
       - uses: softprops/action-gh-release@v2
