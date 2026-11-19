@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Kettle app icon: the source of every icon PNG (npm run icons) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a7fd4"/>
+      <stop offset="1" stop-color="#0f2742"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".18"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="url(#bg)"/>
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="url(#shine)"/>
+  <g id="kettle" fill="#fff" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- steam -->
+    <path d="M22 37c-4-4.5 4-7.5 0-12s4-7.5 0-12" fill="none" stroke-width="4.2" opacity=".9"/>
+    <path d="M33 31c-3-3.5 3-6 0-9.5" fill="none" stroke-width="3.6" opacity=".65"/>
+    <!-- handle -->
+    <path d="M37 47c0-16 34-16 34 0" fill="none" stroke-width="5.5"/>
+    <!-- lid and knob -->
+    <circle cx="54" cy="40.5" r="3.6" stroke="none"/>
+    <path d="M42 47.5c4-4.5 20-4.5 24 0z" stroke-width="2"/>
+    <!-- spout -->
+    <path d="M37 64 22 49.5c-1.2-1.2.4-3 1.8-2.1L42 58.5z" stroke-width="3.6"/>
+    <!-- body and base -->
+    <path d="M33 80c0-17 6-30 21-30s21 13 21 30z" stroke="none"/>
+    <rect x="30" y="77" width="48" height="8" rx="4" stroke="none"/>
+  </g>
+</svg>

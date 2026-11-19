@@ -15,7 +15,8 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
-    "test": "node --test --test-timeout=60000 tests/*.test.js"
+    "test": "node --test --test-timeout=60000 tests/*.test.js",
+    "icons": "node scripts/make-icons.js"
   },
   "build": {
     "appId": "com.meztking.steammasteridler",
