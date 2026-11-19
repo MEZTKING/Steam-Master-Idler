@@ -10,7 +10,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const { findSteamDir, isSteamRunning, closeSteam, startSteam, localConfigPath } = require('../../lib/steam-local');
+// used as steamLocal.x() so tests can stand in for the Steam app
+const steamLocal = require('../../lib/steam-local');
+const { findSteamDir, localConfigPath } = steamLocal;
+const isSteamRunning = () => steamLocal.isSteamRunning();
+const closeSteam = (dir) => steamLocal.closeSteam(dir);
+const startSteam = (dir) => steamLocal.startSteam(dir);
 const { getVdfValue, getVdfBlock, setVdfValue } = require('../../lib/vdf-edit');
 
 const APPS_PATH = ['UserLocalConfigStore', 'Software', 'Valve', 'Steam', 'apps'];

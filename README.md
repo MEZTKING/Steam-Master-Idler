@@ -252,6 +252,7 @@ The app checks GitHub for a new release shortly after starting and every 12 hour
 
 | Installed as | What **Update** does |
 |---|---|
+| *Get beta versions* on | Also offers pre-releases (betas). Off: only finished releases. |
 | Windows installer | Downloads it (in the background if *Download updates in the background* is on), checks its size and checksum, installs silently and restarts. Idling resumes after the restart. |
 | Windows portable | Saves the new portable `.exe` next to the old one and starts it. Delete the old one afterwards. |
 | Linux AppImage | Replaces the AppImage in place and restarts. |
@@ -269,6 +270,7 @@ npm start              # desktop app
 android/prepare.sh && (cd android && ./gradlew assembleRelease)   # Android APKs (needs the Android SDK + NDK)
 npm run web            # same UI in your browser at http://127.0.0.1:3000
 npm run cli -- --help  # command-line version
+npm test               # the tests (about 5 seconds, no Steam account needed)
 npm run dist           # build an installer for your OS into dist/
 ```
 
@@ -286,9 +288,17 @@ npm run cli -- --stop-after 8          # stop after 8 hours
 npm run cli -- --played-only           # skip games you've never played
 ```
 
+## Tests
+
+`npm test` runs the tests in `tests/` with Node's built-in test runner. Steam is faked: the tests answer Steam's requests themselves, stand in for Steam Cloud storage with a local web server, and build a pretend Steam folder (screenshots, `screenshots.vdf`, `localconfig.vdf`) in a temporary home folder. They cover the screenshot uploader (waiting for the game to close, private uploads, the Steam Cloud check, refused games, upload order, finding missing screenshots), the screenshot manager, launch options and the Steam settings file editor, settings backup & sync, the updater (beta channel, damaged downloads), the other tools, and the local server (tools load only when on, cross-site requests refused, no secrets in the debug report).
+
+Every push and pull request runs them first; the installers are only built, and a release only published, when they pass. Parts that need the real Steam app or a real account are listed in [docs/TESTING.md](docs/TESTING.md) as a checklist.
+
 ## Releasing
 
-Push a version tag and GitHub Actions builds every installer and publishes a release:
+From GitHub: **Actions** → **Build** → **Run workflow** → tick **Publish a release**. It runs the tests, builds every installer and publishes them as a release of the version in `package.json` (it refuses to publish a version that's already released, so bump the version first). Tick **Beta** too, or use a version with a dash like `1.13.0-beta.1`, to publish a pre-release: only apps with Settings → Updates → **Get beta versions** are offered it.
+
+Or push a version tag:
 
 ```bash
 npm version 1.0.1      # bumps package.json and creates the tag

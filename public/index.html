@@ -1112,6 +1112,8 @@
 			<legend>Updates</legend>
 			<label class="opt"><input type="checkbox" data-k="checkUpdates"><span>Check for updates
 				<small>One small request to GitHub after starting and every 12 hours.</small></span></label>
+			<label class="opt"><input type="checkbox" data-k="betaUpdates"><span>Get beta versions
+				<small>Also offer pre-releases: new features sooner, but they may have rough edges.</small></span></label>
 			<label class="opt" id="opt-autoupdate"><input type="checkbox" data-k="autoUpdate"><span>Download updates in the background
 				<small>The new version installs when you press Restart to update.</small></span></label>
 			<div class="opt" style="cursor:default;align-items:center;flex-wrap:wrap;gap:8px">
@@ -2852,7 +2854,7 @@ function renderUpdate() {
 	const show = !!u.available && dismissed !== u.available;
 	$('#update-banner').classList.toggle('hidden', !show);
 	if (u.available) {
-		$('#upd-title').textContent = `Version ${u.available} is available`;
+		$('#upd-title').textContent = `${u.prerelease ? 'Beta version' : 'Version'} ${u.available} is available`;
 		$('#upd-sub').textContent = u.download ? `Downloading… ${fmtMB(u.download.done)}${u.download.total ? ` of ${fmtMB(u.download.total)}` : ''}`
 			: u.ready ? 'Downloaded and ready.' : `(you have ${u.current})`;
 		$('#upd-progress').classList.toggle('hidden', !u.download);
