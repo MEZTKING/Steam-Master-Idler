@@ -272,6 +272,7 @@ npm run web            # same UI in your browser at http://127.0.0.1:3000
 npm run cli -- --help  # command-line version
 npm test               # the tests (about 5 seconds, no Steam account needed)
 npm run dist           # build an installer for your OS into dist/
+npm run icons          # redraw every icon PNG from assets/src/icon.svg (needs Playwright)
 ```
 
 From source, `config.json`, `.session` and `state.json` live in the project folder.
