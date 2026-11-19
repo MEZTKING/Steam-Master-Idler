@@ -70,6 +70,7 @@ const config = Object.assign({
 	freeMemoryInTray: true, // desktop app only: close the window fully while it's in the tray
 	devMode: false,        // Developer tab: live log + system info
 	devVerbose: false,     // ...including every Steam message (memory only)
+	onboarded: false,      // the first-run "what do you want Kettle to do?" screen was shown
 	syncFolder: '',        // settings backups go here (e.g. your Google Drive folder); '' = off
 	syncAuto: true,        // ...automatically: a day after the last one, and soon after settings change
 	checkUpdates: true,    // look for a new release now and then (one small request every 12 h)
@@ -966,7 +967,7 @@ function applySettings(body) {
 		log(viaApp() ? 'Idling through the Steam app on this PC.' : "Idling with the idler's own Steam login.");
 		if (session) { session.lastSent = null; helperErrors.clear(); applyGames(false, true); }
 	}
-	for (const k of ['syncAuto', 'devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'betaUpdates', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
+	for (const k of ['onboarded', 'syncAuto', 'devMode', 'devVerbose', 'checkUpdates', 'autoUpdate', 'betaUpdates', 'playedOnly', 'showUsername', 'minimizeToTray', 'freeMemoryInTray', 'preventSleep', 'shutdownWhenDone', 'autoTakeover']) {
 		if (k in body) config[k] = !!body[k];
 	}
 	if ('playedMinutes' in body) config.playedMinutes = Math.max(1, Math.min(6000, parseInt(body.playedMinutes, 10) || 1));

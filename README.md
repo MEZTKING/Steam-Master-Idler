@@ -73,7 +73,7 @@ No game is actually launched, so there is no VAC risk.
 
 ## Tools
 
-Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray. Every tool is **off** until you switch it on in its header. A tool that's off isn't loaded and runs no timers or requests. Every tool you switch on also gets its own tab in the top menu, showing just that tool.
+The first time you sign in, Kettle asks which tools you want (you can change it any time). Switch between **🎮 Idler** and **🧰 Tools** at the top of the window. Tools share the idler's Steam sign-in and keep running in the tray. Every tool is **off** until you switch it on in its header. A tool that's off isn't loaded and runs no timers or requests. Every tool you switch on also gets its own tab in the top menu, showing just that tool.
 
 ### 📷 Screenshot uploader (desktop app)
 
