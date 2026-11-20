@@ -295,6 +295,8 @@ npm run cli -- --played-only           # skip games you've never played
 
 Every push and pull request runs them first; the installers are only built, and a release only published, when they pass. Parts that need the real Steam app or a real account are listed in [docs/TESTING.md](docs/TESTING.md) as a checklist.
 
+Notes for continuing development in a new session (code map, rules, release steps, open items): [docs/HANDOFF.md](docs/HANDOFF.md).
+
 ## Releasing
 
 From GitHub: **Actions** → **Build** → **Run workflow** → tick **Publish a release**. It runs the tests, builds every installer and publishes them as a release of the version in `package.json` (it refuses to publish a version that's already released, so bump the version first). Tick **Beta** too, or use a version with a dash like `1.13.0-beta.1`, to publish a pre-release: only apps with Settings → Updates → **Get beta versions** are offered it.
